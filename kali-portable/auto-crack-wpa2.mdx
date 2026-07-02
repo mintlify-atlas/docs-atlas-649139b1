@@ -158,7 +158,7 @@ auto-crack-wpa2.sh [-q] [-r <rule>] [-w <wordlist>] [-c] <file>
 | `<file>` | Input `.hc22000` or `.pcapng` file | required |
 
 <Note>
-  `-q` is a shorthand that sets both `-w rockyou.txt` and `-r best64.rule` simultaneously. Any `-w` or `-r` flags specified alongside `-q` are overridden by the quick-mode defaults because `-q` is processed last in the argument loop.
+  `-q` is a shorthand that sets both `-w rockyou.txt` and `-r best64.rule` simultaneously. Argument order matters: flags are processed left to right, so any `-w` or `-r` supplied **after** `-q` will override the quick-mode defaults.
 </Note>
 
 ---

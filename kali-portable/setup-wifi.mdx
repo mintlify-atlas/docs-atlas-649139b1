@@ -1,7 +1,7 @@
 ---
 title: "setup-wifi.sh: Activate Monitor Mode on WiFi Adapter"
 sidebarTitle: "WiFi Setup"
-description: "setup-wifi.sh automates putting a USB WiFi adapter into monitor mode inside the Kali Portable container, killing conflicting processes and confirming the interface name."
+description: "setup-wifi.sh enables monitor mode on a USB WiFi adapter inside Kali Portable, killing conflicting processes and printing the new interface name."
 ---
 
 Monitor mode is a special operating state for wireless network adapters that allows the card to capture every 802.11 frame in range — not just frames addressed to it — without associating with any access point. It is a prerequisite for tools like `hcxdumptool` and `airodump-ng` that need to passively observe or actively inject WiFi traffic. `setup-wifi.sh` automates the full activation sequence: detecting your adapter, stopping any processes that would interfere (such as NetworkManager and wpa_supplicant), enabling monitor mode with `airmon-ng`, and reporting the new interface name so you can use it immediately.

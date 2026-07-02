@@ -38,7 +38,7 @@ These variables are set inside the container by the `Dockerfile` and are availab
 
 ## Persistent Directory Structure
 
-The `./data/` folder on your host maps to `/root/pentest/` inside the container. Both the Dockerfile and `run-kali.sh` pre-create the following subdirectories automatically on first run:
+The `./data/` folder on your host maps to `/root/pentest/` inside the container. The Dockerfile pre-creates all subdirectories at image build time; `run-kali.sh` also creates most of them on the host at launch (excluding `vpn/`, which is only created inside the container by the image). After the first run, your `./data/` folder on the host will contain:
 
 ```text
 data/

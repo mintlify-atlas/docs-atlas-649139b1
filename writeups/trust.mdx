@@ -1,7 +1,7 @@
 ---
 title: "trust: Web Enumeration and Sudo Privilege Escalation"
 sidebarTitle: "trust"
-description: "Writeup for the trust DockerLabs machine (Very Easy): enumerate a web server to find credentials, gain SSH access, and escalate privileges using a sudo misconfiguration."
+description: "Writeup for trust on DockerLabs: use Gobuster to find a hidden PHP page, brute-force SSH with Hydra, and escalate to root via a sudo vim misconfiguration."
 ---
 
 trust is a **Very Easy** DockerLabs machine that chains three foundational techniques: web directory enumeration to discover a hidden PHP page leaking a username, SSH credential brute-forcing with Hydra to log in as that user, and a `sudo vim` misconfiguration to escalate directly to root. It is an excellent starter machine for practising the full end-to-end workflow — from passive web footprinting all the way to a root shell.

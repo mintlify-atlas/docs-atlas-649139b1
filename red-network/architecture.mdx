@@ -4,17 +4,17 @@ sidebarTitle: "Architecture"
 description: "Detailed topology of the segmented home network: port assignments, trunk links, VLAN routing, and WiFi 6 access point integration with OpenWrt."
 ---
 
-The network is built around the Cisco 892FSP acting as the single core device for all routing, switching, DHCP, and access control. Eight GigabitEthernet LAN ports (GE0–GE7) are each assigned a specific role — one trunk carrying all VLANs to the primary WiFi 6 AP, four access ports for wired cameras, one admin port, and two ports feeding the secondary Aztech access points. A ninth port (GE8) connects to the ISP modem as the WAN uplink. All inter-VLAN traffic is routed by the Cisco 892FSP's SVIs (Switched Virtual Interfaces), with ACLs applied at that routing layer to enforce segment isolation.
+The network is built around the Cisco 892FSP acting as the single core device for all routing, switching, DHCP, and access control. Eight GigabitEthernet LAN ports (GE0–GE7) are each assigned a specific role — one trunk carrying VLANs 20, 30, 40, 50, and 99 to the primary WiFi 6 AP, four access ports for wired cameras on VLAN 10, one admin port, and two ports feeding the secondary Aztech access points. A ninth port (GE8) connects to the ISP modem as the WAN uplink. All inter-VLAN traffic is routed by the Cisco 892FSP's SVIs (Switched Virtual Interfaces), with ACLs applied at that routing layer to enforce segment isolation.
 
 ## Physical Port Assignments
 
 | Port | Mode | VLAN | Connected Device |
 |------|------|------|-----------------|
-| GE0 | Trunk | 10, 20, 30, 40, 50, 99 | EDUP RT2980 WiFi 6 AP |
+| GE0 | Trunk | 20, 30, 40, 50, 99 | EDUP RT2980 WiFi 6 AP |
 | GE1–GE4 | Access | VLAN 10 | Wired IP cameras / NVR |
 | GE5 | Access | VLAN 99 | Admin PC |
 | GE6 | Access | VLAN 10 | Aztech WIFINVR (camera WiFi AP) |
-| GE7 | Access | VLAN 30 | Aztech Invitados AP (smartphones/guests) |
+| GE7 | Access | VLAN 30 | Aztech SmartphonesAztech AP (SMARTPHONES) |
 | GE8 | WAN | — | ISP modem |
 
 <Note>
@@ -27,7 +27,7 @@ The Cisco 892FSP handles all inter-VLAN routing internally. Each VLAN has a corr
 
 ## WiFi 6 AP: EDUP RT2980 on OpenWrt
 
-The EDUP RT2980 connects to GE0 on a trunk link carrying all VLANs. OpenWrt is used to configure multiple SSIDs, each bound to a specific VLAN interface:
+The EDUP RT2980 connects to GE0 on a trunk link carrying VLANs 20, 30, 40, 50, and 99. OpenWrt is used to configure multiple SSIDs, each bound to a specific VLAN interface:
 
 | Radio | SSID | VLAN | Segment |
 |-------|------|------|---------|
@@ -69,7 +69,7 @@ interface range GigabitEthernet1-4
 interface GigabitEthernet0
  description TRUNK_TO_EDUP
  switchport mode trunk
- switchport trunk allowed vlan 10,20,30,40,50,99
+ switchport trunk allowed vlan 20,30,40,50,99
 ```
 
 ### Admin Port (GE5)
@@ -92,11 +92,11 @@ interface GigabitEthernet6
  duplex full
 ```
 
-### Aztech Smartphones/Guests AP Port (GE7)
+### Aztech Smartphones AP Port (GE7)
 
 ```text
 interface GigabitEthernet7
- description AZTECH-INVITADOS
+ description AZTECH-SMARTPHONES
  switchport mode access
  switchport access vlan 30
 ```

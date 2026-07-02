@@ -1,7 +1,7 @@
 ---
 title: "Kali Portable: Full Red Team Station in Docker"
 sidebarTitle: "Overview"
-description: "Kali Portable is a Docker-based Kali Linux environment with 100+ pentesting tools, NVIDIA GPU acceleration for Hashcat, and automated WiFi auditing scripts."
+description: "Kali Portable is a Docker-based Kali Linux environment with 100+ pentesting tools, NVIDIA GPU acceleration for Hashcat, and automated WiFi auditing."
 ---
 
 Kali Portable Full is a complete, containerized red team workstation built on top of Kali Linux Rolling. Packaged as a single Docker image, it ships over 100 offensive security tools — from network scanners and exploit frameworks to Active Directory attack suites and forensic analyzers — so you can spin up a fully operational pentesting station on any Linux host in minutes. It was created by Diego Arriagada Zamora (V0rt3xS0urc3) and is designed for ethical hackers, security students, and practitioners who want a reproducible, GPU-accelerated environment that works equally well on a fresh laptop or an existing workstation.
@@ -45,7 +45,6 @@ kali-portable/
 ├── docker/
 │   └── Dockerfile              # Image build recipe
 ├── scripts/
-│   ├── run-kali.sh             # Main launcher script
 │   ├── install-on-new-pc.sh    # Automated installer
 │   ├── auto-crack-wpa2.sh      # WPA2 cracking pipeline
 │   └── setup-wifi.sh           # Monitor mode setup
@@ -54,8 +53,9 @@ kali-portable/
 │   ├── rules/                  # Hashcat rules (best64, d3ad0ne, etc.)
 │   ├── handshakes/             # Captured WiFi handshakes
 │   ├── loot/                   # Cracked passwords and results
+│   ├── pcaps/                  # Raw packet captures
 │   └── vpn/                    # OpenVPN configuration files
-├── run-kali.sh                 # Top-level launcher (symlink/copy)
+├── run-kali.sh                 # Main launcher script
 ├── README.md
 └── LICENSE
 ```

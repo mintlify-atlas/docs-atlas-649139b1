@@ -1,7 +1,7 @@
 ---
-title: "NVIDIA GPU Acceleration for Hashcat in Docker"
+title: "NVIDIA GPU Acceleration for Hashcat in Kali Docker"
 sidebarTitle: "GPU Acceleration"
-description: "Configure NVIDIA GPU passthrough in Kali Portable for Hashcat cracking. Covers NVIDIA Container Toolkit setup, OpenCL configuration, and verifying GPU detection."
+description: "Configure NVIDIA GPU passthrough in Kali Portable for Hashcat cracking. Covers Container Toolkit setup, OpenCL configuration, and verifying GPU detection."
 ---
 
 GPU-accelerated password cracking is one of the primary reasons to run Hashcat inside a dedicated Docker environment rather than a virtual machine. When an NVIDIA GPU is passed through to the container, Hashcat can process hundreds of millions — or even billions — of WPA2 candidates per second, compared to a few million on a modern CPU. Kali Portable automates GPU detection at startup: `run-kali.sh` queries `nvidia-smi` on the host before launching, and if a compatible GPU is found, it adds `--gpus all` to the `docker run` command automatically. The OpenCL layer (`ocl-icd-libopencl1`) and NVIDIA ICD configuration are baked into the image at build time so no driver setup is needed inside the container.

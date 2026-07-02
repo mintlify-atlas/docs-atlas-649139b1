@@ -1,7 +1,7 @@
 ---
-title: "BorazuwarahCTF: Steganography and SSH Brute Force"
+title: "BorazuwarahCTF: Steganography, SSH Brute Force, Sudo"
 sidebarTitle: "BorazuwarahCTF"
-description: "Writeup for BorazuwarahCTF on DockerLabs: extract hidden credentials from an image using steghide, brute-force SSH with Hydra, and escalate with sudo."
+description: "Writeup for BorazuwarahCTF on DockerLabs: extract a hidden username from image metadata with exiftool, brute-force SSH with Hydra, and escalate with sudo."
 ---
 
 BorazuwarahCTF is a **Very Easy** DockerLabs machine that chains three distinct techniques into a clean learning path: steganography to extract a hidden username from an image, Hydra to brute-force SSH credentials, and a dangerously misconfigured `sudo` rule to escalate directly to root. It is an ideal machine for practising OSINT-style image analysis alongside classic credential attacks.
@@ -186,17 +186,17 @@ Enter the password found by Hydra. You now have a shell as the `borazuwarah` use
     **Output:**
     ```
     User borazuwarah may run the following commands on borazuwarahctf:
-        (ALL) /bin/bash
+        (ALL) NOPASSWD: /bin/bash
     ```
 
-    This is an extremely dangerous misconfiguration: the user can run `/bin/bash` as any user — including root — with no restrictions.
+    This is an extremely dangerous misconfiguration: the user can run `/bin/bash` as any user — including root — without a password prompt.
   </Step>
 
   <Step title="Escalate to Root">
     Execute bash with root privileges:
 
     ```bash
-    sudo bash
+    sudo /bin/bash
     ```
 
     Verify the escalation:
@@ -232,7 +232,7 @@ When you are done, return to your deploy terminal and press `Ctrl+C` to stop and
   <Card title="Weak Passwords Are the Problem" icon="key">
     The password found here is near the top of `rockyou.txt`. A strong, unique password would have stopped Hydra in its tracks. Password policies matter.
   </Card>
-  <Card title="sudo bash = Root Access" icon="shield-exclamation">
+  <Card title="sudo /bin/bash = Root Access" icon="shield-exclamation">
     Granting `sudo` access to a shell binary (`bash`, `sh`, `zsh`) is equivalent to giving full root access. Use `sudo` only for specific, non-interactive commands.
   </Card>
   <Card title="SSH Hardening" icon="lock">

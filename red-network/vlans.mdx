@@ -1,7 +1,7 @@
 ---
-title: "VLAN Segmentation: 6 Isolated Network Segments"
+title: "VLAN Segmentation: 6 Isolated Segments on Cisco 892FSP"
 sidebarTitle: "VLANs"
-description: "Complete VLAN design for the home lab: 6 segments for cameras, gaming, multimedia, smartphones, guests, and administration with IP addressing and internet access policies."
+description: "Home lab VLAN design: 6 segments covering cameras, gaming, multimedia, smartphones, guests, and admin, with IP subnets and Cisco DHCP configuration."
 ---
 
 Network segmentation is the foundation of this project's security model. Without VLANs, every device on the home network — cameras, gaming PCs, guest phones, the admin machine — shares the same broadcast domain and can potentially reach each other. A compromised smart TV or a guest device could then pivot to cameras, or worse, to the admin management plane. By placing each device category into its own VLAN with explicit inter-VLAN access policies enforced by the Cisco 892FSP, each segment becomes an independent trust zone. Devices within a VLAN can communicate freely with each other; communication across VLANs requires passing through the router's ACL policy.

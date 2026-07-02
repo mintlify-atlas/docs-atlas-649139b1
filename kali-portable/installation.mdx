@@ -1,7 +1,7 @@
 ---
 title: "Install Kali Portable: Docker Setup with GPU Support"
 sidebarTitle: "Installation"
-description: "Step-by-step guide to installing Kali Portable using the automated installer script. Handles Docker, NVIDIA GPU, image build, and wordlist downloads automatically."
+description: "How to install Kali Portable using the automated installer script. Covers Docker, NVIDIA GPU detection, image build, and wordlist downloads automatically."
 ---
 
 Kali Portable ships with an automated installer script — `install-on-new-pc.sh` — that handles every dependency from scratch. It detects whether Docker is installed, checks for an NVIDIA GPU, builds the full Docker image from the included Dockerfile, and downloads all required wordlists and Hashcat rules into the `./data/` directory. On a brand-new Linux machine you only need Git and an internet connection; the script takes care of everything else.
@@ -69,12 +69,12 @@ Kali Portable ships with an automated installer script — `install-on-new-pc.sh
 If you prefer to build the image manually without running the installer — for example, on a system where you have already configured Docker yourself — navigate to the `docker/` directory and run:
 
 ```bash
-cd kali-portable/docker
+cd docker
 docker build -t kali-pentest-full .
 ```
 
 <Tip>
-  The Dockerfile is structured in 21 named stages. If a specific layer fails (e.g., a GitHub release URL changes), you can comment out that block, rebuild, and add the tool manually inside the container later.
+  The Dockerfile is structured in 22 numbered sections (utilities, Python, recon, exploitation, AV evasion, forensics, OSINT, IoT, mobile, crypto, web, steganography, networking, cracking, WiFi, Active Directory, post-exploitation, VPN, privesc, GPU, wordlists, and environment setup). If a specific section fails (e.g., a GitHub release URL changes), you can comment out that block, rebuild, and add the tool manually inside the container later.
 </Tip>
 
 ## Updating and Rebuilding the Image
@@ -82,7 +82,7 @@ docker build -t kali-pentest-full .
 To rebuild the image with the latest Kali Linux packages and tool versions, use `--pull` and `--no-cache` to force a fresh build:
 
 ```bash
-cd kali-portable/docker
+cd docker
 docker build --pull --no-cache -t kali-pentest-full .
 ```
 

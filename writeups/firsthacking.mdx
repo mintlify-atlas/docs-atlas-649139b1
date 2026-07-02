@@ -1,7 +1,7 @@
 ---
-title: "firsthacking: vsftpd 2.3.4 Backdoor Exploitation"
+title: "firsthacking: Exploiting the vsftpd 2.3.4 Backdoor"
 sidebarTitle: "firsthacking"
-description: "Writeup for the firsthacking DockerLabs machine (Very Easy): enumerate services with Nmap, exploit the vsftpd 2.3.4 backdoor via Metasploit and netcat to gain root."
+description: "Writeup for the firsthacking DockerLabs machine: exploit the vsftpd 2.3.4 backdoor via Metasploit, netcat, and searchsploit to gain a root shell."
 ---
 
 firsthacking is a **Very Easy** DockerLabs machine built around one of the most famous backdoors in Linux history: **vsftpd 2.3.4**. A malicious version of the popular FTP daemon was briefly distributed in 2011 with a hidden backdoor that opens a root shell on port 6200 when a username ending in `:)` is submitted. This machine teaches you how to find and weaponise a known CVE using both Metasploit and a manual netcat approach — reinforcing the lesson that understanding the underlying mechanism is just as important as running the automated exploit.
