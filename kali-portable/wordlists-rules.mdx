@@ -1,0 +1,234 @@
+---
+title: "Wordlists & Hashcat Rules Included in Kali Portable"
+sidebarTitle: "Wordlists & Rules"
+description: "Kali Portable ships with rockyou.txt, the full SecLists collection, and 20+ Hashcat rules including best64, d3ad0ne, T0XlC, and hybrid rule sets."
+---
+
+Kali Portable bundles everything you need for dictionary and rule-based attacks without any manual downloads after the build. The Dockerfile automatically fetches `rockyou.txt` (~133 MB) and the complete SecLists collection during the image build, deposits them at well-known paths inside the container, and pre-configures symlinks so tools like Gobuster and FFUF can reference them by short names. Hashcat rules ship with the APT package and are verified at build time. Host-side wordlists are available read-only at `/host-wordlists`, and a persistent workspace under `/root/pentest/wordlists/` syncs to `./data/wordlists/` on your host so custom lists survive container restarts.
+
+---
+
+## Environment Variable Paths
+
+Three environment variables are baked into the image and available to every tool and script running inside the container:
+
+```bash
+WORDLISTS_PATH=/usr/share/wordlists
+SECLISTS_PATH=/usr/share/seclists
+HASHCAT_RULES_PATH=/usr/share/hashcat/rules
+```
+
+You can reference these in any command or script without hardcoding absolute paths.
+
+---
+
+## Wordlists
+
+### rockyou.txt
+
+The most widely used password cracking wordlist, downloaded from the official naive-hashcat mirror during the image build.
+
+| Property | Value |
+|----------|-------|
+| **Location** | `/usr/share/wordlists/rockyou.txt` |
+| **Size** | ~133 MB |
+| **Entries** | ~14.3 million unique passwords |
+| **Source** | GitHub — `brannondorsey/naive-hashcat` release |
+
+```bash
+# Reference rockyou via the environment variable
+hashcat -m 22000 capture.hc22000 $WORDLISTS_PATH/rockyou.txt -O
+```
+
+### SecLists Complete Collection
+
+The full SecLists repository is cloned and extracted into `/usr/share/seclists/` at build time, giving you instant access to every password, directory, fuzzing, payload, and pattern list maintained by Daniel Miessler's project.
+
+| Property | Value |
+|----------|-------|
+| **Location** | `/usr/share/seclists/` |
+| **Source** | GitHub — `danielmiessler/SecLists` (master branch) |
+
+Key subdirectories inside `$SECLISTS_PATH`:
+
+```
+/usr/share/seclists/
+├── Discovery/
+│   ├── Web-Content/          # common.txt, raft-*, directory-list-*
+│   ├── DNS/                  # subdomain wordlists
+│   └── Infrastructure/       # network enumeration lists
+├── Passwords/
+│   ├── Common-Credentials/   # 10-million-password-list-*
+│   ├── Leaked-Databases/
+│   └── WiFi-WPA/             # WPA-focused lists
+├── Fuzzing/                   # SQLi, XSS, SSTI, path traversal payloads
+├── Usernames/
+└── Miscellaneous/
+```
+
+### Symlinked Convenience Lists
+
+Two frequently used SecLists files are symlinked directly into `$WORDLISTS_PATH` so short path references work out of the box:
+
+| Alias Path | Points To |
+|-----------|----------|
+| `/usr/share/wordlists/common.txt` | `$SECLISTS_PATH/Discovery/Web-Content/common.txt` |
+| `/usr/share/wordlists/directory-list-medium.txt` | `$SECLISTS_PATH/Discovery/Web-Content/directory-list-2.3-medium.txt` |
+
+```bash
+# Gobuster with the symlinked common.txt
+gobuster dir -u http://10.10.10.10 -w /usr/share/wordlists/common.txt
+
+# Medium directory list
+gobuster dir -u http://10.10.10.10 -w /usr/share/wordlists/directory-list-medium.txt
+```
+
+### Host Wordlists (Read-Only Mount)
+
+When the container starts, your host machine's `/usr/share/wordlists/` directory is mounted read-only at `/host-wordlists`. This gives you access to any wordlists installed on the host (e.g., Kali native installs) without duplicating storage.
+
+```bash
+# Access host wordlists inside the container
+ls /host-wordlists/
+hashcat -m 22000 capture.hc22000 /host-wordlists/rockyou.txt -O
+```
+
+### Persistent User Wordlists
+
+The `/root/pentest/wordlists/` directory inside the container is bind-mounted to `./data/wordlists/` on the host. Any wordlists you copy here persist across container restarts and image rebuilds.
+
+```bash
+# Copy a custom wordlist to the persistent volume (from host)
+cp ~/my-custom-list.txt ./data/wordlists/
+
+# Use it inside the container
+hashcat -m 22000 capture.hc22000 /root/pentest/wordlists/my-custom-list.txt -O
+```
+
+<Tip>
+  Store large corporate-specific or custom-generated wordlists in `./data/wordlists/` on the host. They will appear at `/root/pentest/wordlists/` inside every container session without bloating the Docker image.
+</Tip>
+
+---
+
+## Hashcat Rules
+
+Hashcat rules ship with the `hashcat` APT package from Kali's repository and land at `/usr/share/hashcat/rules/`. The Dockerfile verifies their presence at build time. The project also includes an extended rules collection (including hybrid rules) that maps to `/root/pentest/rules/` inside the container via the `./data/rules/` volume mount.
+
+### Core Rules
+
+| Rule File | Description |
+|-----------|-------------|
+| `best64.rule` | Top 64 most effective password mutations |
+| `best66.rule` | Extended best-64 with 2 additional transforms |
+| `d3ad0ne.rule` | Large comprehensive mutation set (~34k rules) |
+| `T0XlC.rule` | Advanced transformations — symbols, numbers, substitutions |
+| `T0XlCv2.rule` | Revised and expanded T0XlC ruleset |
+| `T0XlC_3_rule.rule` | Third iteration of the T0XlC series |
+| `T0XlC-insert_00-99_1950-2050_toprules_0_F.rule` | Year/number insertion rules |
+| `T0XlC-insert_space_and_special_0_F.rule` | Space and special character insertion |
+| `T0XlC-insert_top_100_passwords_1_G.rule` | Top-100 password injection rules |
+| `T0XlC_insert_HTML_entities_0_Z.rule` | HTML entity substitution rules |
+| `leetspeak.rule` | Standard leet-speak character substitutions |
+| `Incisive-leetspeak.rule` | Extended leet-speak with additional symbol coverage |
+| `unix-ninja-leetspeak.rule` | Unix-Ninja variant leet-speak transforms |
+| `rockyou-30000.rule` | Rules optimized for rockyou.txt candidate generation |
+| `combinator.rule` | Combination attack helper rules |
+| `dive.rule` | Deep exploration ruleset for stubborn hashes |
+| `oscommerce.rule` | Rules derived from osCommerce password patterns |
+| `generated.rule` | Auto-generated mutation rules |
+| `generated2.rule` | Second auto-generated ruleset |
+| `specific.rule` | Target-specific rule patterns |
+| `stacking58.rule` | 58-level stacking rule combination |
+| `InsidePro-HashManager.rule` | Rules ported from InsidePro HashManager |
+| `InsidePro-PasswordsPro.rule` | Rules ported from InsidePro PasswordsPro |
+| `top10_2025.rule` | Rules targeting current-year top password patterns |
+| `toggles1.rule` – `toggles5.rule` | Case-toggling rules (1–5 positions) |
+
+### Hybrid Rules
+
+The `hybrid/` subdirectory contains append and prepend rule combinations for hybrid dictionary+mask attacks. Files follow a consistent naming scheme:
+
+```
+hybrid/
+├── append_d.rule              # Append digits
+├── append_ds.rule             # Append digits + special chars
+├── append_du.rule             # Append digits + uppercase
+├── append_l.rule              # Append lowercase
+├── append_ld.rule             # Append lowercase + digits
+├── append_lu.rule             # Append lowercase + uppercase
+├── append_lus.rule            # Append lowercase + uppercase + special
+├── append_s.rule              # Append special characters
+├── append_u.rule              # Append uppercase
+├── prepend_d.rule             # Prepend digits
+├── prepend_l.rule             # Prepend lowercase
+├── prepend_ld.rule            # Prepend lowercase + digits
+...                            # (passthrough variants for each)
+```
+
+Each rule also has a `_passthrough` variant that passes the original candidate unmodified alongside the mutated version — useful for hybrid attacks where you want both the base word and its appended mutation as candidates.
+
+---
+
+## Using Wordlists with Hashcat
+
+### Standard Dictionary Attack
+
+```bash
+# Attack WPA2 handshake with rockyou.txt
+hashcat -m 22000 capture.hc22000 /usr/share/wordlists/rockyou.txt
+```
+
+### Dictionary + Rule Attack
+
+```bash
+# With best64 rule — doubles effective candidate count
+hashcat -m 22000 capture.hc22000 /usr/share/wordlists/rockyou.txt \
+  -r /usr/share/hashcat/rules/best64.rule -O
+
+# With d3ad0ne for deeper mutations
+hashcat -m 22000 capture.hc22000 /usr/share/wordlists/rockyou.txt \
+  -r /usr/share/hashcat/rules/d3ad0ne.rule -O
+```
+
+### SecLists Password Lists
+
+```bash
+# 1-million common passwords
+hashcat -m 22000 capture.hc22000 \
+  /usr/share/seclists/Passwords/Common-Credentials/10-million-password-list-top-1000000.txt -O
+
+# WPA-specific wordlist from SecLists
+hashcat -m 22000 capture.hc22000 \
+  /usr/share/seclists/Passwords/WiFi-WPA/probable-v2-wpa-top4800.txt -O
+```
+
+### Hybrid Append Attack
+
+```bash
+# Append digits to every rockyou candidate (e.g., password → password123)
+hashcat -m 22000 capture.hc22000 /usr/share/wordlists/rockyou.txt \
+  -r /root/pentest/rules/hybrid/append_d.rule -O
+```
+
+### Resuming an Interrupted Attack
+
+Hashcat automatically checkpoints its progress. If a crack session is interrupted (container restart, power loss), resume exactly where it left off:
+
+```bash
+hashcat -m 22000 capture.hc22000 --restore
+```
+
+<Note>
+  The Hashcat session file (`.hashcat/session.restore`) is stored inside the container at `/root/.hashcat/`. To make restore files persist across container restarts, ensure your attack targets files stored under `/root/pentest/` (which is bind-mounted to `./data/` on the host). Potfile entries at `~/.hashcat/hashcat.potfile` are also preserved this way.
+</Note>
+
+### Showing Cracked Results
+
+```bash
+# Display all cracked hashes from the current potfile
+hashcat -m 22000 capture.hc22000 --show
+
+# Save results to a report file
+hashcat -m 22000 capture.hc22000 --show > /root/pentest/loot/cracked.txt
+```

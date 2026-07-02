@@ -1,0 +1,106 @@
+---
+title: "Network Topology: Cisco 892FSP with 6 VLANs and WiFi 6"
+sidebarTitle: "Architecture"
+description: "Detailed topology of the segmented home network: port assignments, trunk links, VLAN routing, and WiFi 6 access point integration with OpenWrt."
+---
+
+The network is built around the Cisco 892FSP acting as the single core device for all routing, switching, DHCP, and access control. Eight GigabitEthernet LAN ports (GE0–GE7) are each assigned a specific role — one trunk carrying all VLANs to the primary WiFi 6 AP, four access ports for wired cameras, one admin port, and two ports feeding the secondary Aztech access points. A ninth port (GE8) connects to the ISP modem as the WAN uplink. All inter-VLAN traffic is routed by the Cisco 892FSP's SVIs (Switched Virtual Interfaces), with ACLs applied at that routing layer to enforce segment isolation.
+
+## Physical Port Assignments
+
+| Port | Mode | VLAN | Connected Device |
+|------|------|------|-----------------|
+| GE0 | Trunk | 10, 20, 30, 40, 50, 99 | EDUP RT2980 WiFi 6 AP |
+| GE1–GE4 | Access | VLAN 10 | Wired IP cameras / NVR |
+| GE5 | Access | VLAN 99 | Admin PC |
+| GE6 | Access | VLAN 10 | Aztech WIFINVR (camera WiFi AP) |
+| GE7 | Access | VLAN 30 | Aztech Invitados AP (smartphones/guests) |
+| GE8 | WAN | — | ISP modem |
+
+<Note>
+  GE1–GE4 are forced to 100 Mbps full-duplex. The Cisco 892FSP's LAN ports are 100 Mbps — this is a known hardware constraint; speed and duplex are pinned explicitly to prevent autonegotiation instability with IP cameras.
+</Note>
+
+## VLAN Routing
+
+The Cisco 892FSP handles all inter-VLAN routing internally. Each VLAN has a corresponding SVI (`interface VlanXX`) which acts as the default gateway for that segment. ACLs are applied inbound on each SVI, meaning all traffic — whether it stays within the router or exits to the WAN — passes through the policy enforcement point. There is no separate layer-3 switch; the 892FSP is the only routing device.
+
+## WiFi 6 AP: EDUP RT2980 on OpenWrt
+
+The EDUP RT2980 connects to GE0 on a trunk link carrying all VLANs. OpenWrt is used to configure multiple SSIDs, each bound to a specific VLAN interface:
+
+| Radio | SSID | VLAN | Segment |
+|-------|------|------|---------|
+| 5 GHz | Gaming_5GHz | VLAN 50 | GAMING |
+| 2.4 GHz | Multimedia_24GHz | VLAN 20 | MULTIMEDIA |
+
+The 5GHz radio provides low-latency connectivity for gaming PCs. The 2.4GHz radio covers smart TVs and projectors where range matters more than raw throughput.
+
+## Aztech Access Points
+
+Two Aztech WL559E units operate in **access point mode**, each connected to a dedicated Cisco port:
+
+| AP | Port | SSID | VLAN | Segment |
+|----|------|------|------|---------|
+| AztechCam (WIFINVR) | GE6 | Camaras\_WiFi | VLAN 10 | CAMARAS |
+| AztechInv | GE7 | SmartphonesAztech | VLAN 30 | SMARTPHONES |
+
+<Info>
+  The AztechCam AP provides WiFi connectivity for any WiFi-only cameras that cannot be connected via Ethernet. It is on VLAN 10 — the fully isolated camera segment — so even wirelessly connected cameras receive no internet access and no inter-VLAN reachability.
+</Info>
+
+## Cisco Port Configuration
+
+### Camera Access Ports (GE1–GE4)
+
+```text
+! Ports for cameras (VLAN 10)
+interface range GigabitEthernet1-4
+ description CAMARAS-WIRED
+ switchport mode access
+ switchport access vlan 10
+ speed 100
+ duplex full
+```
+
+### Trunk Port to Main WiFi 6 AP (GE0)
+
+```text
+interface GigabitEthernet0
+ description TRUNK_TO_EDUP
+ switchport mode trunk
+ switchport trunk allowed vlan 10,20,30,40,50,99
+```
+
+### Admin Port (GE5)
+
+```text
+interface GigabitEthernet5
+ description ADMIN-PC
+ switchport mode access
+ switchport access vlan 99
+```
+
+### Aztech Camera AP Port (GE6)
+
+```text
+interface GigabitEthernet6
+ description WIFINVR
+ switchport mode access
+ switchport access vlan 10
+ speed 100
+ duplex full
+```
+
+### Aztech Smartphones/Guests AP Port (GE7)
+
+```text
+interface GigabitEthernet7
+ description AZTECH-INVITADOS
+ switchport mode access
+ switchport access vlan 30
+```
+
+<Note>
+  All configuration shown uses Cisco IOS syntax as used on the 892FSP. The router runs a legacy IOS version; SSH access requires explicit compatibility flags (`-oKexAlgorithms`, `-oHostKeyAlgorithms`) when connecting from modern SSH clients.
+</Note>

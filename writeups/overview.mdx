@@ -1,0 +1,84 @@
+---
+title: "DockerLabs CTF Writeups: Hacking Infrastructure Machines"
+sidebarTitle: "Overview"
+description: "Step-by-step writeups for DockerLabs vulnerable machines, covering reconnaissance, exploitation, and privilege escalation across Very Easy to Hard difficulty levels."
+---
+
+DockerLabs hosts **193 vulnerable machines** designed to sharpen your ethical hacking skills through hands-on practice. Every machine is self-contained inside a Docker container, meaning you can spin up a target in seconds, hack it, and tear it down — no hardware required. This section of the Red Team Portfolio covers writeups for the **Hacking Infraestructura** category, walking through each machine from initial reconnaissance to root access using real-world techniques.
+
+## Categories on DockerLabs
+
+DockerLabs organises its content into five main categories. This portfolio currently focuses on Hacking Infraestructura, with the remaining categories in progress.
+
+| Category | Status |
+|---|---|
+| 🔧 Hacking Infraestructura | ✅ In Progress |
+| 🌐 Hacking Web | 🚧 In Construction |
+| 📝 Hacking CMS | 🚧 In Construction |
+| 🐛 Bug Bounty | 🚧 In Construction |
+| 🔀 Pivoting | 🚧 In Construction |
+
+## Difficulty Levels
+
+Each machine is tagged with a difficulty level that determines the complexity of techniques required. The writeups in this section are all rated **Muy Fácil (Very Easy)** — the ideal starting point for anyone new to infrastructure hacking.
+
+| Level | Spanish | Description |
+|---|---|---|
+| Very Easy | Muy Fácil | Fundamental techniques, beginner-friendly enumeration and exploitation |
+| Easy | Fácil | Basic CVEs, simple privilege escalation chains |
+| Medium | Medio | Chained vulnerabilities, deeper enumeration, lateral movement |
+| Hard | Difícil | Complex exploitation paths, advanced privilege escalation |
+
+## Available Writeups
+
+All four machines below are rated **Very Easy** and cover foundational hacking infrastructure skills: port scanning, service exploitation, credential attacks, and privilege escalation.
+
+<CardGroup cols={2}>
+  <Card title="BorazuwarahCTF" icon="image" href="/writeups/borazuwarahctf">
+    Extract a hidden username from image metadata with **exiftool**, run a steghide extraction with **stegseek**, then brute-force SSH credentials with **Hydra** to gain access and escalate via a misconfigured `sudo` rule.
+  </Card>
+  <Card title="BreakMySSH" icon="lock-open" href="/writeups/breakmyssh">
+    A focused SSH brute-force exercise. Enumerate the target with **Nmap**, then unleash **Hydra** against the SSH service using `rockyou.txt` to land a direct root shell — no privilege escalation required.
+  </Card>
+  <Card title="firsthacking" icon="terminal" href="/writeups/firsthacking">
+    Exploit the classic **vsftpd 2.3.4 backdoor** via Metasploit and a manual netcat trigger. A great introduction to CVE-based exploitation and using **searchsploit** to find public exploits.
+  </Card>
+  <Card title="trust" icon="handshake" href="/writeups/trust">
+    Enumerate a web server with **Gobuster** to discover a hidden PHP page leaking a username, brute-force the SSH password with **Hydra**, then abuse a `sudo vim` misconfiguration to escalate to root.
+  </Card>
+</CardGroup>
+
+## Tools Used Across Writeups
+
+Every machine in this section was attacked from a **Kali Portable** environment — a fully self-contained Docker-based Kali Linux station with GPU acceleration and 100+ pre-installed pentesting tools. You can read more about it at [/kali-portable/overview](/kali-portable/overview).
+
+The core toolset across these writeups includes:
+
+- **Nmap** — Service and version scanning (`-sC -sV --min-rate`)
+- **Hydra** — Dictionary-based brute force against SSH
+- **Gobuster** — Web directory and file enumeration
+- **Metasploit** — Module-based exploitation (vsftpd backdoor)
+- **stegseek / steghide / exiftool** — Steganography and metadata analysis
+- **GTFOBins** — Reference for sudo/SUID privilege escalation
+
+<Note>
+All writeups use `172.17.0.2` as the target IP — the default address Docker assigns to the first container on the `docker0` bridge network. Your machine may receive the same IP, but always confirm with the output of `./auto_deploy.sh`.
+</Note>
+
+## Launching Your Environment
+
+Before attacking any machine, start your Kali Portable session in a second terminal window:
+
+```bash
+./run-kali.sh normal
+```
+
+Then deploy the target machine in the first terminal by running the provided deploy script (see individual writeups for machine-specific commands). When you are done, press `Ctrl+C` in the deploy terminal to stop and remove the container.
+
+<Warning>
+Only test these techniques on machines you are **authorised** to attack. DockerLabs machines are intentionally vulnerable and designed exclusively for educational practice. Never run these attacks against systems you do not own or have explicit written permission to test.
+</Warning>
+
+<Tip>
+New to hacking infrastructure? Start with **BreakMySSH** for a single-technique warm-up, then move to **trust** to chain web enumeration with privilege escalation, and finish with **BorazuwarahCTF** to add steganography to your skill set.
+</Tip>

@@ -1,0 +1,130 @@
+---
+title: "WireGuard VPN: Secure Remote Access to the Home Lab"
+sidebarTitle: "WireGuard VPN"
+description: "Set up WireGuard on the Cisco 892FSP home lab to enable secure encrypted remote access from any device, tunneling into the internal network."
+---
+
+WireGuard is the VPN of choice for this home lab for three reasons: it is modern, fast, and requires minimal configuration compared to alternatives like OpenVPN or IPsec. Its kernel-level implementation delivers lower latency and higher throughput, while the configuration is a single file on both server and client. In this network, a WireGuard server runs on a Linux machine placed in VLAN 99 (ADMIN) — the management segment. The Cisco 892FSP port-forwards UDP 51820 from the WAN interface to that server, making it reachable from any internet connection. Once connected, remote clients can reach all internal VLANs as if they were physically on the network.
+
+## Architecture
+
+```
+[Remote Client] ──── UDP 51820 ──── [Cisco 892FSP WAN (GE8)]
+                                            │
+                                    NAT + Port Forward
+                                            │
+                                    [WireGuard Server]
+                                    [VLAN 99 – 10.0.99.x]
+                                            │
+                                    [Routes to all VLANs]
+                                    [10.0.10.0/29 → 10.0.99.0/29]
+```
+
+The WireGuard tunnel address space uses `10.0.200.0/24`, separate from all internal VLANs. Once a client is connected, the `AllowedIPs = 10.0.0.0/16` route in the client config pushes all internal home network traffic through the tunnel.
+
+## WireGuard Server Setup
+
+The server runs on a Linux host (e.g., a small machine or VM in VLAN 99).
+
+```bash
+# Install WireGuard
+sudo apt install wireguard
+
+# Generate server key pair
+wg genkey | tee server_private.key | wg pubkey > server_public.key
+```
+
+Create the server configuration at `/etc/wireguard/wg0.conf`:
+
+```bash
+[Interface]
+Address = 10.0.200.1/24
+ListenPort = 51820
+PrivateKey = <server_private_key>
+
+[Peer]
+# Remote client
+PublicKey = <client_public_key>
+AllowedIPs = 10.0.200.2/32
+```
+
+<Note>
+  Each remote client gets a unique `[Peer]` block with its own public key and a dedicated `/32` IP in the `10.0.200.0/24` tunnel range. Add additional `[Peer]` blocks for each device you want to allow (e.g., laptop, phone, Kali container).
+</Note>
+
+Enable and start the WireGuard interface:
+
+```bash
+sudo systemctl enable --now wg-quick@wg0
+
+# Verify the interface is up and peers are configured
+sudo wg show
+```
+
+## Client Configuration
+
+On any remote device (laptop, phone, or Kali container):
+
+```bash
+# Generate client key pair
+wg genkey | tee client_private.key | wg pubkey > client_public.key
+```
+
+Client config file (e.g., `/etc/wireguard/wg0.conf` or imported into the WireGuard app):
+
+```bash
+[Interface]
+Address = 10.0.200.2/24
+PrivateKey = <client_private_key>
+DNS = 8.8.8.8
+
+[Peer]
+# WireGuard server (home network)
+PublicKey = <server_public_key>
+Endpoint = <your_public_ip>:51820
+AllowedIPs = 10.0.0.0/16, 10.0.200.0/24
+PersistentKeepalive = 25
+```
+
+<Tip>
+  `AllowedIPs = 10.0.0.0/16` routes all internal home network traffic (every VLAN from 10.0.10.0 through 10.0.99.0) through the tunnel. This means a connected remote client can reach cameras on VLAN 10, the NVR, gaming PCs, or any other internal host — just as if physically on the network. `10.0.200.0/24` is included to cover the tunnel subnet itself.
+</Tip>
+
+<Tip>
+  `PersistentKeepalive = 25` sends a keepalive packet every 25 seconds. This is essential when the client is behind NAT (home router, mobile data) — it keeps the NAT mapping alive so the server can always reach the client even when it hasn't sent traffic recently.
+</Tip>
+
+## Cisco 892FSP Port Forwarding
+
+The Cisco 892FSP must forward incoming UDP port 51820 on the WAN interface (GE8) to the WireGuard server's internal IP on VLAN 99.
+
+```text
+ip nat inside source static udp 10.0.99.X 51820 interface GigabitEthernet8 51820
+```
+
+Replace `10.0.99.X` with the actual static IP of the WireGuard Linux server on VLAN 99. This creates a static NAT entry that maps any UDP traffic arriving on the WAN IP at port 51820 directly to the server.
+
+<Note>
+  Assign the WireGuard server a static IP within the VLAN 99 subnet (e.g., `10.0.99.2`) or use a DHCP reservation on the Cisco DHCP pool so its address never changes. A floating IP would break the NAT rule.
+</Note>
+
+## Connecting from the Kali Portable Container
+
+If you are running the Kali Portable Red Team container (also part of this portfolio), you can bring up the WireGuard tunnel directly from inside the container:
+
+```bash
+# Bring up the WireGuard tunnel from inside the Kali container
+wg-quick up /root/pentest/vpn/wg0.conf
+
+# Verify the tunnel is active
+wg show
+
+# Test connectivity to a home network host
+ping 10.0.99.1
+```
+
+This allows the Kali container to reach the home lab's internal VLANs from anywhere — a coffee shop, a hotel, a CTF event — with full encrypted access to the camera segment, admin network, and any services running internally.
+
+<Warning>
+  Ensure that the WireGuard config file (`wg0.conf`) inside the Kali container contains valid, up-to-date keys. If the server's public key changes (e.g., after a key rotation), the client config must be updated. Never commit private keys to a public repository.
+</Warning>

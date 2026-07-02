@@ -1,20 +1,77 @@
 ---
-title: "Introduction"
-description: "Welcome to your project"
+title: "RedTeam Portfolio: Kali Portable, Network Labs & CTF Writeups"
+sidebarTitle: "Home"
+description: "Explore a hands-on red team portfolio: Dockerized Kali Linux with GPU acceleration, a segmented home network built on Cisco hardware, and detailed CTF writeups."
 ---
 
-Write a short description of your product here. What it does, who it's for, and what they can accomplish with it.
+Welcome to the **RedTeam Portfolio** — a collection of practical offensive security projects by Diego Arriagada Zamora (V0rt3xS0urc3). Whether you're setting up a portable pentesting environment, studying network segmentation, or working through CTF machines, you'll find detailed documentation and real working examples here.
 
-<Tip>
-  Ready to make this your own? Start by editing this page. Update your `docs.json` file to customize your site. Then fill out the [Quickstart](/quickstart) page.
-</Tip>
+<CardGroup cols={2}>
+  <Card title="Kali Portable" icon="docker" href="/kali-portable/overview">
+    Full Kali Linux pentesting station in Docker with NVIDIA GPU acceleration and 100+ pre-installed tools.
+  </Card>
+  <Card title="Quick Install" icon="rocket" href="/kali-portable/installation">
+    Automated installer handles Docker, GPU setup, wordlists, and image build in one script.
+  </Card>
+  <Card title="Red Network Lab" icon="network-wired" href="/red-network/overview">
+    Enterprise-grade segmented home network with 6 VLANs, QoS, and WireGuard VPN on Cisco 892FSP.
+  </Card>
+  <Card title="CTF Writeups" icon="flag" href="/writeups/overview">
+    Step-by-step solutions for DockerLabs machines from Very Easy to Hard difficulty levels.
+  </Card>
+</CardGroup>
 
-<Card title="Quickstart" icon="rocket" href="/quickstart">
-  This card links to the quickstart page in your project.
-</Card>
-<Card title="Components" icon="puzzle-piece" href="https://mintlify.com/docs/components">
-  Add cards, callouts, steps, tabs, and more to design and structure your pages.
-</Card>
-<Card title="Settings" icon="gear" href="https://mintlify.com/docs/organize/settings">
-  Set your site name, branding, and navigation in the `docs.json` file.
-</Card>
+## Get Started with Kali Portable
+
+<Steps>
+  <Step title="Clone the repository">
+    ```bash
+    git clone https://github.com/V0rt3xS0urc3/RedTeam-Portfolio.git
+    cd RedTeam-Portfolio/kali-portable
+    ```
+  </Step>
+  <Step title="Run the automated installer">
+    The installer detects your OS, installs Docker if needed, configures NVIDIA GPU support, builds the image, and downloads wordlists — all automatically.
+    ```bash
+    chmod +x scripts/install-on-new-pc.sh
+    ./scripts/install-on-new-pc.sh
+    ```
+  </Step>
+  <Step title="Launch your pentesting environment">
+    ```bash
+    ./run-kali.sh normal
+    ```
+    For WiFi auditing with hardware access, use `./run-kali.sh wpa2`.
+  </Step>
+</Steps>
+
+<Note>
+Installation takes approximately 30–45 minutes depending on your internet connection. The image includes SecLists, rockyou.txt, Hashcat rules, and 100+ pentesting tools.
+</Note>
+
+## What's Inside
+
+<CardGroup cols={3}>
+  <Card title="100+ Tools" icon="shield-halved" href="/kali-portable/tools">
+    Nmap, Metasploit, Burp Suite, BloodHound, Impacket, Hashcat, and more — all pre-configured.
+  </Card>
+  <Card title="GPU Cracking" icon="bolt" href="/kali-portable/gpu-acceleration">
+    NVIDIA CUDA acceleration for Hashcat — crack WPA2 handshakes orders of magnitude faster.
+  </Card>
+  <Card title="WPA2 Automation" icon="wifi" href="/kali-portable/auto-crack-wpa2">
+    Automated pipeline from handshake capture to password cracking with `auto-crack-wpa2.sh`.
+  </Card>
+  <Card title="6 VLANs" icon="sitemap" href="/red-network/vlans">
+    Cameras, Gaming, Multimedia, Smartphones, Guests, and Admin — fully isolated segments.
+  </Card>
+  <Card title="WireGuard VPN" icon="lock" href="/red-network/wireguard-vpn">
+    Secure remote access into your lab network from anywhere with WireGuard tunneling.
+  </Card>
+  <Card title="DockerLabs CTFs" icon="terminal" href="/writeups/overview">
+    Detailed writeups covering recon, exploitation, and privilege escalation methodologies.
+  </Card>
+</CardGroup>
+
+<Warning>
+All tools and techniques documented here are for **authorized security testing and educational purposes only**. Never test systems without explicit written permission. Unauthorized access is illegal under Chilean Law 19.223 and equivalent laws worldwide.
+</Warning>

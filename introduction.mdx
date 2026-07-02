@@ -1,0 +1,122 @@
+---
+title: "RedTeam Portfolio: Offensive Security Tools & Labs"
+sidebarTitle: "Introduction"
+description: "A hands-on offensive security portfolio by V0rt3xS0urc3 covering Docker pentesting environments, segmented network labs, and real CTF writeups."
+---
+
+This portfolio is a practical, infrastructure-first collection of offensive security projects built and maintained by Diego Arriagada Zamora (V0rt3xS0urc3), a Chilean pentester and ethical hacker. Everything here is grounded in real tooling and real environments: a fully-featured Dockerized Kali Linux station with NVIDIA GPU acceleration, a segmented home network lab modelled on enterprise design principles, and detailed writeup walkthroughs for DockerLabs machines spanning web, infrastructure, CMS, bug bounty, and pivoting categories.
+
+<Warning>
+  All tools, techniques, and configurations documented in this portfolio are intended **exclusively for authorized penetration testing and educational purposes**. Unauthorized access to computer systems is a criminal offense. In Chile, **Ley 19.223** specifically criminalizes unauthorized access to computer systems. Always obtain written authorization before conducting any security assessment.
+</Warning>
+
+## Projects at a Glance
+
+The portfolio is organized into three active project areas and an about page. Each project is fully documented with setup guides, usage walkthroughs, and practical examples drawn from real lab work.
+
+<CardGroup cols={2}>
+  <Card
+    title="Kali Portable (Docker)"
+    icon="docker"
+    href="/kali-portable/overview"
+  >
+    A complete red team workstation containerized in Docker with 100+ pentesting tools, NVIDIA GPU-accelerated Hashcat, automated WPA2 cracking scripts, and persistent volumes for wordlists, handshakes, and loot.
+  </Card>
+  <Card
+    title="Red Domestic Network"
+    icon="network-wired"
+    href="/red-network/overview"
+  >
+    An enterprise-grade segmented home network built on a Cisco 892FSP core router with 6 VLANs, QoS for gaming priority, WireGuard VPN remote access, and WiFi 6 access points running OpenWrt.
+  </Card>
+  <Card
+    title="CTF Writeups (DockerLabs)"
+    icon="flag"
+    href="/writeups/overview"
+  >
+    Step-by-step solutions for vulnerable machines from DockerLabs.es across five categories: Infrastructure Hacking, Web Hacking, CMS Hacking, Bug Bounty, and Pivoting — covering difficulty levels from very easy to hard.
+  </Card>
+  <Card
+    title="About V0rt3xS0urc3"
+    icon="user-shield"
+    href="/about"
+  >
+    Learn about Diego Arriagada Zamora, his specializations in red team operations, Active Directory attacks, WiFi auditing, and his ongoing certifications and platform activity on TryHackMe and HackTheBox.
+  </Card>
+</CardGroup>
+
+## What You'll Find
+
+This portfolio covers the full offensive security lifecycle — from lab infrastructure design to hands-on exploitation and post-exploitation workflows.
+
+**Infrastructure & Environment Setup**
+- Building a portable, reproducible Kali Linux environment with Docker
+- Automating tool installation, GPU configuration, and wordlist management
+- Designing enterprise-style VLANs and network segmentation at home
+
+**Exploitation & Post-Exploitation Techniques**
+- Web application attacks: SQL injection, SSTI, JWT abuse, directory fuzzing
+- Active Directory attacks using Impacket, BloodHound, NetExec, Certipy, and Kerbrute
+- WiFi auditing with Aircrack-ng, hcxdumptool, and Hashcat WPA2 cracking workflows
+- AV evasion with Veil Framework, Shellter, and TheFatRat
+- Post-exploitation enumeration with LinPEAS, WinPEAS, and Pwncat
+
+**Digital Forensics & Analysis**
+- Memory analysis with Volatility 3
+- Disk and firmware analysis with Sleuth Kit and Binwalk
+- Mobile reverse engineering with APKTool, Dex2Jar, and JADX
+
+**Network & Tunneling**
+- Traffic analysis with Wireshark and TCPDump
+- Pivoting and tunneling with Chisel, Ligolo-ng, and SSHuttle
+- VPN connectivity to TryHackMe and HackTheBox via OpenVPN
+
+**CTF Practice Platforms**
+- DockerLabs (primary writeup source)
+- TryHackMe and HackTheBox (integrated via OpenVPN in Kali Portable)
+- VulnHub and HackLabs (local VM workflows)
+
+<Note>
+  The Kali Portable environment is configured to work out of the box with TryHackMe and HackTheBox — just drop your `.ovpn` file into the `data/vpn/` directory and connect from inside the container.
+</Note>
+
+## Quick Start: Kali Portable
+
+If you want to get a fully equipped red team workstation running immediately, Kali Portable is the fastest path. The automated installer handles Docker, GPU configuration, image building, and wordlist downloads without any manual steps.
+
+```bash
+# 1. Clone the repository
+git clone https://github.com/V0rt3xS0urc3/RedTeam-Portfolio.git
+cd RedTeam-Portfolio/kali-portable
+
+# 2. Run the automated installer (~30-45 minutes)
+chmod +x scripts/install-on-new-pc.sh
+./scripts/install-on-new-pc.sh
+
+# 3. Launch the environment
+./run-kali.sh normal
+```
+
+<Tip>
+  Use `./run-kali.sh wpa2` instead of `normal` when you need privileged USB hardware access for WiFi auditing with a monitor-mode-capable adapter.
+</Tip>
+
+## Repository Structure
+
+The portfolio repository is organized into clearly scoped subdirectories. Each project is self-contained with its own documentation, scripts, and data directories.
+
+```
+RedTeam-Portfolio/
+├── kali-portable/          # Dockerized Kali Linux red team station
+│   ├── docker/             # Dockerfile and build context
+│   ├── scripts/            # run-kali.sh, install, WPA2, WiFi setup
+│   └── data/               # Persistent volume (wordlists, loot, VPN)
+├── RedDomestica/           # Segmented home network lab documentation
+└── WriteupsDockerLabs/     # DockerLabs CTF writeups by category
+```
+
+## Legal Disclaimer
+
+<Warning>
+  This repository and all its contents are provided **for educational purposes and authorized security auditing only**. Misuse of any tool, technique, or configuration documented here is the sole responsibility of the user. Always respect applicable laws and obtain proper written authorization before performing penetration tests. **🇨🇱 Chilean Law 19.223** — unauthorized access to computer systems is a criminal offense punishable by law.
+</Warning>

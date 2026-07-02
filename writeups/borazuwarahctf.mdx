@@ -1,0 +1,241 @@
+---
+title: "BorazuwarahCTF: Steganography and SSH Brute Force"
+sidebarTitle: "BorazuwarahCTF"
+description: "Writeup for BorazuwarahCTF on DockerLabs: extract hidden credentials from an image using steghide, brute-force SSH with Hydra, and escalate with sudo."
+---
+
+BorazuwarahCTF is a **Very Easy** DockerLabs machine that chains three distinct techniques into a clean learning path: steganography to extract a hidden username from an image, Hydra to brute-force SSH credentials, and a dangerously misconfigured `sudo` rule to escalate directly to root. It is an ideal machine for practising OSINT-style image analysis alongside classic credential attacks.
+
+<Note>
+**Machine Info**
+
+| Field | Details |
+|---|---|
+| Difficulty | Very Easy (Muy Fácil) |
+| Category | Hacking Infraestructura |
+| OS | Linux |
+| Key Techniques | Steganography, SSH brute force, sudo privilege escalation |
+| Default Target IP | 172.17.0.2 |
+</Note>
+
+## Phase 0: Launch Kali Portable
+
+Open a second terminal window and start your Kali Portable environment before doing anything else:
+
+```bash
+./run-kali.sh normal
+```
+
+All subsequent commands in this writeup are run **inside** the Kali Portable session.
+
+## Phase 1: Deploy the Machine
+
+Download `borazuwarahCTF.zip` from DockerLabs, then in your first terminal:
+
+```bash
+unzip borazuwarahCTF.zip
+chmod +x auto_deploy.sh
+./auto_deploy.sh borazuwarahctf.tar
+```
+
+The script pulls the Docker image and prints the target IP address. The default assigned IP is `172.17.0.2`.
+
+## Phase 2: Reconnaissance
+
+<Steps>
+  <Step title="Verify Connectivity">
+    Before scanning, confirm the container is alive:
+
+    ```bash
+    ping -c 3 172.17.0.2
+    ```
+
+    You should see replies with low latency — you are on the same Docker bridge network.
+  </Step>
+
+  <Step title="Nmap Service Scan">
+    Run a version + default-script scan at an accelerated rate (safe in this controlled environment):
+
+    ```bash
+    nmap -sC -sV --min-rate 2000 172.17.0.2
+    ```
+
+    | Argument | Meaning |
+    |---|---|
+    | `-sC` | Runs default NSE scripts for common checks |
+    | `-sV` | Detects service versions |
+    | `--min-rate 2000` | Sends ≥2000 packets/s — fast but noisy |
+
+    **Findings:**
+
+    | Port | Service | Version |
+    |---|---|---|
+    | 22/tcp | SSH | OpenSSH 9.2p1 |
+    | 80/tcp | HTTP | Apache |
+
+    <Warning>
+    In a real penetration test, avoid `--min-rate` as it can trigger IDS/IPS alerts and get your IP blocked. Use `-sS` (SYN scan) with conservative timing instead.
+    </Warning>
+  </Step>
+</Steps>
+
+## Phase 3: Web Enumeration
+
+Navigate to `http://172.17.0.2` in a browser. The page displays a single image — a Kinder Surprise egg (`huevito.jpeg`). There is no obvious navigation or login form.
+
+Run Gobuster to find any hidden paths:
+
+```bash
+gobuster dir -u http://172.17.0.2 \
+  -w /usr/share/wordlists/dirb/common.txt \
+  -x jpeg,jpg,png,php,txt,html,doc
+```
+
+**Result:** No additional files or directories are discovered. The image on the front page is the only attack surface.
+
+Download the image for analysis:
+
+```bash
+wget http://172.17.0.2/huevito.jpeg
+```
+
+## Phase 4: Steganography — Extracting the Hidden Username
+
+This is the core phase of the machine. The image contains hidden data retrievable through two complementary methods.
+
+<Steps>
+  <Step title="Metadata Analysis with Exiftool">
+    Check the image's EXIF metadata — a frequently overlooked source of information:
+
+    ```bash
+    exiftool huevito.jpeg
+    ```
+
+    **Key finding:** The metadata field `Description` (or a similar field) contains the username **`borazuwarah`**. This is the credential needed for the next phase.
+  </Step>
+
+  <Step title="Steghide Extraction with Stegseek">
+    Stegseek is a high-speed steghide cracker that can test thousands of passwords per second. Run it against the rockyou wordlist:
+
+    ```bash
+    stegseek huevito.jpeg /usr/share/wordlists/rockyou.txt
+    ```
+
+    Stegseek finds the steghide passphrase and extracts an embedded file. The file content itself does not reveal directly useful credentials, but confirms that the image was used as a steganographic container.
+
+    <Tip>
+    **stegseek vs steghide:** `steghide extract -sf image.jpg` requires you to know the passphrase. `stegseek` automates the brute-force attack using a wordlist and is orders of magnitude faster than running steghide in a loop. Always reach for stegseek first.
+    </Tip>
+  </Step>
+</Steps>
+
+**Summary of findings after Phase 4:**
+- Username: **`borazuwarah`** (from EXIF metadata)
+- Confirmed steganographic content inside `huevito.jpeg`
+
+## Phase 5: SSH Brute Force with Hydra
+
+Armed with the username, use Hydra to brute-force the SSH password against rockyou.txt:
+
+```bash
+hydra -l borazuwarah -P /usr/share/wordlists/rockyou.txt ssh://172.17.0.2 -t 64
+```
+
+| Argument | Meaning |
+|---|---|
+| `-l borazuwarah` | Single known username |
+| `-P rockyou.txt` | Password wordlist |
+| `ssh://172.17.0.2` | Target protocol and IP |
+| `-t 64` | 64 parallel threads |
+
+**Result:** Hydra finds valid credentials quickly. The password is a very common string found near the top of `rockyou.txt`.
+
+<Info>
+As an experiment, you can also test Nmap's built-in SSH brute-force script for comparison:
+
+```bash
+echo "borazuwarah" > usuarios.txt
+nmap -p 22 --script ssh-brute \
+  --script-args userdb=usuarios.txt,passdb=top1000.txt \
+  172.17.0.2
+```
+
+In this local Docker environment, Nmap's more efficient TCP connection handling can make it faster than Hydra. In real-world networks with latency and rate-limiting, Hydra is generally more reliable and configurable.
+</Info>
+
+## Phase 6: SSH Access
+
+Connect to the machine with the discovered credentials:
+
+```bash
+ssh borazuwarah@172.17.0.2
+```
+
+Enter the password found by Hydra. You now have a shell as the `borazuwarah` user.
+
+## Phase 7: Privilege Escalation via Sudo
+
+<Steps>
+  <Step title="Enumerate Sudo Permissions">
+    Check what commands the current user can run as root:
+
+    ```bash
+    sudo -l
+    ```
+
+    **Output:**
+    ```
+    User borazuwarah may run the following commands on borazuwarahctf:
+        (ALL) /bin/bash
+    ```
+
+    This is an extremely dangerous misconfiguration: the user can run `/bin/bash` as any user — including root — with no restrictions.
+  </Step>
+
+  <Step title="Escalate to Root">
+    Execute bash with root privileges:
+
+    ```bash
+    sudo bash
+    ```
+
+    Verify the escalation:
+
+    ```bash
+    whoami
+    # root
+    id
+    # uid=0(root) gid=0(root) groups=0(root)
+    ```
+  </Step>
+
+  <Step title="Capture the Flag">
+    Navigate to the root home directory and read the flag:
+
+    ```bash
+    ls /root
+    cat /root/flag.txt
+    ```
+  </Step>
+</Steps>
+
+## Post-Lab Cleanup
+
+When you are done, return to your deploy terminal and press `Ctrl+C` to stop and remove the Docker container. Then type `exit` to leave the Kali Portable session.
+
+## Key Takeaways
+
+<CardGroup cols={2}>
+  <Card title="Steganography as an Attack Vector" icon="image">
+    Image metadata (EXIF fields) can expose usernames, emails, or GPS coordinates. Always inspect files thoroughly with `exiftool` and `stegseek` before moving on.
+  </Card>
+  <Card title="Weak Passwords Are the Problem" icon="key">
+    The password found here is near the top of `rockyou.txt`. A strong, unique password would have stopped Hydra in its tracks. Password policies matter.
+  </Card>
+  <Card title="sudo bash = Root Access" icon="shield-exclamation">
+    Granting `sudo` access to a shell binary (`bash`, `sh`, `zsh`) is equivalent to giving full root access. Use `sudo` only for specific, non-interactive commands.
+  </Card>
+  <Card title="SSH Hardening" icon="lock">
+    Implement `fail2ban` to block brute-force attempts, disable password authentication in favour of SSH keys, and consider changing the default port to reduce automated scanning noise.
+  </Card>
+</CardGroup>

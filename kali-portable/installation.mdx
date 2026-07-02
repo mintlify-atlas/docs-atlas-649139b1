@@ -1,0 +1,93 @@
+---
+title: "Install Kali Portable: Docker Setup with GPU Support"
+sidebarTitle: "Installation"
+description: "Step-by-step guide to installing Kali Portable using the automated installer script. Handles Docker, NVIDIA GPU, image build, and wordlist downloads automatically."
+---
+
+Kali Portable ships with an automated installer script — `install-on-new-pc.sh` — that handles every dependency from scratch. It detects whether Docker is installed, checks for an NVIDIA GPU, builds the full Docker image from the included Dockerfile, and downloads all required wordlists and Hashcat rules into the `./data/` directory. On a brand-new Linux machine you only need Git and an internet connection; the script takes care of everything else.
+
+## Prerequisites
+
+- **Git** — to clone the repository
+- **Linux host** — Ubuntu, Debian, Arch, or any systemd-based distribution; macOS and WSL2 are not officially supported for the WiFi auditing features
+- **NVIDIA drivers** *(optional)* — install them through your distribution's package manager before running the installer if you want GPU-accelerated Hashcat
+
+<Warning>
+  Approximately **15 GB of free disk space** is required. The Docker image alone is several gigabytes, and the installer additionally downloads `rockyou.txt` (~133 MB), Hashcat rules, and gobuster wordlists.
+</Warning>
+
+## Installation Steps
+
+<Steps>
+  <Step title="Clone the Repository">
+    Clone the RedTeam Portfolio repository and navigate into the `kali-portable` directory:
+
+    ```bash
+    git clone https://github.com/V0rt3xS0urc3/RedTeam-Portfolio.git
+    cd RedTeam-Portfolio/kali-portable
+    ```
+  </Step>
+
+  <Step title="Make the Installer Executable and Run It">
+    Grant execute permission to the installer script, then run it. No arguments are needed — the script is fully interactive and self-contained:
+
+    ```bash
+    chmod +x scripts/install-on-new-pc.sh
+    ./scripts/install-on-new-pc.sh
+    ```
+  </Step>
+
+  <Step title="What the Installer Does Automatically">
+    The installer works through four stages and handles all of the following without manual intervention:
+
+    - ✅ **Installs Docker** — if Docker is not found, it fetches and runs the official `get.docker.com` installer and adds your user to the `docker` group
+    - ✅ **Configures NVIDIA GPU** — detects `nvidia-smi` and validates that the NVIDIA Container Toolkit is working; if GPU support is absent, Hashcat falls back to CPU automatically
+    - ✅ **Builds the Docker image** — runs `docker build` against `kali-portable/docker/Dockerfile` and tags the result as `kali-pentest-full`; skips the build if the image already exists
+    - ✅ **Downloads `rockyou.txt`** (~133 MB) — fetched from the official Kali Linux package repository and placed in `./data/wordlists/`
+    - ✅ **Copies Hashcat rules** — extracts `best64.rule`, `d3ad0ne.rule`, `T0XlC.rule`, `leetspeak.rule`, and the rest of the bundled rule set from the image into `./data/rules/`
+    - ✅ **Downloads gobuster wordlists** — fetches `common.txt` from the SecLists repository into `./data/wordlists/`
+    - ✅ **Sets permissions** — `chown`s the entire `./data/` tree to your current user and makes all scripts in `./scripts/` executable
+
+    <Note>
+      Installation takes approximately **30–45 minutes**, depending on your internet connection speed. The Docker image build step is the longest phase since it installs 100+ packages and clones several tools from GitHub.
+    </Note>
+  </Step>
+
+  <Step title="Launch the Environment">
+    Once the installer finishes, start your pentesting environment in normal mode:
+
+    ```bash
+    ./run-kali.sh normal
+    ```
+
+    You will see the startup banner, a GPU detection message, and drop straight into a Kali Linux shell with all tools available.
+  </Step>
+</Steps>
+
+## Manual Docker Build (Alternative)
+
+If you prefer to build the image manually without running the installer — for example, on a system where you have already configured Docker yourself — navigate to the `docker/` directory and run:
+
+```bash
+cd kali-portable/docker
+docker build -t kali-pentest-full .
+```
+
+<Tip>
+  The Dockerfile is structured in 21 named stages. If a specific layer fails (e.g., a GitHub release URL changes), you can comment out that block, rebuild, and add the tool manually inside the container later.
+</Tip>
+
+## Updating and Rebuilding the Image
+
+To rebuild the image with the latest Kali Linux packages and tool versions, use `--pull` and `--no-cache` to force a fresh build:
+
+```bash
+cd kali-portable/docker
+docker build --pull --no-cache -t kali-pentest-full .
+```
+
+Rebuilding discards all cached layers and re-downloads every package from the Kali Rolling repositories. The recommended cadence is every **3–6 months**, or whenever a significant Kali Linux update is released.
+
+<Warning>
+  A `--no-cache` rebuild requires the same ~15 GB of disk space as a fresh install and will again take 30–45 minutes to complete.
+</Warning>

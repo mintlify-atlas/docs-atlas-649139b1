@@ -1,23 +1,11 @@
 {
-  "$schema": "https://mintlify.com/docs.json",
-  "name": "RedTeam Portfolio",
+  "projectType": "infrastructure",
+  "projectName": "RedTeam Portfolio",
+  "projectDescription": "A comprehensive red team portfolio featuring Kali Linux portable in Docker with GPU acceleration, a segmented home network project, and detailed CTF writeups for DockerLabs machines.",
   "theme": "aspen",
-  "colors": {
-    "primary": "#0c64c4",
-    "light": "#84b4dc"
-  },
-  "favicon": "https://media.brand.dev/d9eec136-1b58-4560-8c2a-e122eba9a857.jpg",
-  "navbar": {
-    "primary": {
-      "type": "github",
-      "href": "https://github.com/V0rt3xS0urc3/RedTeam-Portfolio"
-    }
-  },
-  "footer": {
-    "socials": {
-      "github": "https://github.com/V0rt3xS0urc3/RedTeam-Portfolio"
-    }
-  },
+  "primaryColor": "#0c64c4",
+  "lightColor": "#84b4dc",
+  "darkColor": null,
   "navigation": {
     "tabs": [
       {
@@ -100,5 +88,26 @@
         ]
       }
     ]
-  }
+  },
+  "keyFeatures": [
+    "Kali Linux portable container with 100+ pentesting tools pre-installed",
+    "NVIDIA GPU acceleration for Hashcat password cracking",
+    "Automated WPA2 handshake capture and cracking pipeline",
+    "Automated installation script with Docker, GPU, and wordlist setup",
+    "Two run modes: normal (general pentesting) and wpa2 (privileged WiFi auditing)",
+    "Persistent volume for pentest data (wordlists, loot, handshakes, VPN configs)",
+    "Segmented home network with 6 VLANs on Cisco 892FSP with QoS and WireGuard",
+    "CTF writeups for DockerLabs machines across multiple difficulty levels"
+  ],
+  "publicApiSurface": [
+    "run-kali.sh normal",
+    "run-kali.sh wpa2",
+    "scripts/install-on-new-pc.sh",
+    "scripts/auto-crack-wpa2.sh [-q] [-r <rule>] [-w <wordlist>] [-c] <file.hc22000|.pcapng>",
+    "scripts/setup-wifi.sh",
+    "docker build -t kali-pentest-full ./docker/",
+    "hashcat -m 22000 <handshake.hc22000> <wordlist>",
+    "hcxdumptool -i <interface> -o <output.pcapng>",
+    "hcxpcapngtool -o <output.hc22000> <input.pcapng>"
+  ]
 }

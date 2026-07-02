@@ -1,0 +1,293 @@
+---
+title: "Pentesting Tools: Complete Arsenal in Kali Portable"
+sidebarTitle: "Tools"
+description: "Kali Portable includes 100+ pre-installed red team tools covering scanning, exploitation, web auditing, WiFi cracking, Active Directory, forensics, mobile hacking, and OSINT."
+---
+
+Kali Portable Full ships with a complete red team arsenal built directly into the Docker image — no additional installation required. The toolset spans twelve operational categories aligned with CEH, eJPT, and eCPPT certification objectives and covers every phase of an engagement: reconnaissance, exploitation, lateral movement, post-exploitation, and reporting. Tools are sourced from Kali's official APT repositories, GitHub releases, and PyPI, then wired together with shell aliases so you can move fast inside the container.
+
+<CardGroup cols={2}>
+  <Card title="Scanning & Recon" icon="magnifying-glass">
+    Nmap, Masscan, RustScan, Nuclei, Gobuster, FFUF, httpx, subfinder, and more
+  </Card>
+  <Card title="Exploitation" icon="bomb">
+    Metasploit Framework, ExploitDB / searchsploit, Impacket protocol suite
+  </Card>
+  <Card title="Web Auditing" icon="globe">
+    Burp Suite Community, SQLMap, tplmap, jwt_tool, Weevely, Wfuzz, wrk
+  </Card>
+  <Card title="WiFi & Cracking" icon="wifi">
+    Hashcat (GPU), Aircrack-ng, hcxdumptool, hcxtools, Wifite, Reaver, Hydra
+  </Card>
+  <Card title="Active Directory" icon="building">
+    Impacket, BloodHound, NetExec, CrackMapExec, Certipy, Kerbrute, Responder
+  </Card>
+  <Card title="Post-Exploitation" icon="ghost">
+    LinPEAS, WinPEAS, pspy, Pwncat, pwntools, Linux Exploit Suggester
+  </Card>
+  <Card title="Forensics" icon="microscope">
+    Volatility 3, Binwalk, Sleuth Kit, Autopsy, Steghide, Stegseek
+  </Card>
+  <Card title="OSINT" icon="satellite-dish">
+    Maltego, theHarvester, recon-ng, Shodan CLI, SET, RouterSploit
+  </Card>
+</CardGroup>
+
+---
+
+## Scanning & Reconnaissance
+
+The reconnaissance layer combines fast network scanners with web discovery tools so you can map a target's attack surface in a single container session.
+
+| Tool | Source | Purpose |
+|------|--------|---------|
+| **Nmap** | APT (`nmap`) | Port scanning, service fingerprinting, NSE scripting |
+| **Masscan** | APT (`masscan`) | High-speed TCP port scanning across large ranges |
+| **RustScan** | GitHub `.deb` (v2.2.3) | Blazing-fast pre-scanner that hands results to Nmap |
+| **Nikto** | APT (`nikto`) | Web server misconfiguration and vulnerability scanner |
+| **WhatWeb** | APT (`whatweb`) | Web technology fingerprinting |
+| **WPScan** | APT (`wpscan`) | WordPress-specific vulnerability scanner |
+| **Gobuster** | APT (`gobuster`) | Directory, DNS, and vHost brute-forcing |
+| **Dirb** | APT (`dirb`) | Classic recursive web content scanner |
+| **FFUF** | APT + GitHub (v2.1.0) | Fast web fuzzer with full filter/match control |
+| **Wfuzz** | APT (`wfuzz`) | Flexible web application fuzzer |
+| **SQLMap** | APT (`sqlmap`) | Automated SQL injection detection and exploitation |
+| **Nuclei** | GitHub (v3.3.8) | Template-based vulnerability scanning |
+| **httpx** | GitHub (v1.6.9) | HTTP probing and web discovery at scale |
+| **subfinder** | GitHub (v2.6.7) | Passive subdomain enumeration |
+| **enum4linux-ng** | APT | SMB/NetBIOS enumeration for Windows targets |
+
+---
+
+## Exploitation
+
+Core exploitation frameworks and supporting libraries are installed system-wide and ready to launch from any working directory.
+
+**Metasploit Framework** is installed via APT from Kali's official repository. The `msfconsole` alias `msf` lets you open it with two keystrokes. The database is pre-configured so `search`, `info`, and `use` work immediately.
+
+**ExploitDB** is installed alongside `searchsploit` for offline exploit lookup. Run `searchsploit <CVE or term>` to query the local database without leaving the container.
+
+**Impacket** (`impacket-scripts`) provides the full suite of Python scripts for interacting with Windows protocols — `psexec.py`, `secretsdump.py`, `wmiexec.py`, and the rest are all on `$PATH`.
+
+---
+
+## Web Auditing
+
+Web auditing tools are installed from multiple sources and pre-linked into `/usr/local/bin` so every tool is immediately accessible.
+
+| Tool | Source | Purpose |
+|------|--------|---------|
+| **Burp Suite Community** | APT (`burpsuite`) | Intercepting proxy, scanner, repeater, intruder |
+| **SQLMap** | APT (`sqlmap`) | SQL injection automation with tamper scripts |
+| **tplmap** | GitHub (`/opt/tplmap`) | Server-Side Template Injection (SSTI) exploitation |
+| **jwt_tool** | GitHub (`/opt/jwt_tool`) | JWT token analysis, forging, and algorithm confusion |
+| **Weevely** | APT (`weevely`) | PHP webshell generator and manager |
+| **Wfuzz** | APT (`wfuzz`) | HTTP parameter fuzzing with filter control |
+| **wrk** | APT (`wrk`) | HTTP benchmarking and stress testing |
+| **FFUF** | APT + GitHub | Directory and parameter fuzzing |
+| **FoxyProxy** | GitHub `.xpi` | Saved to `/root/pentest/tools/browser-extensions/` |
+
+<Note>
+  tplmap and jwt_tool are cloned from GitHub and symlinked to `/usr/local/bin/tplmap` and `/usr/local/bin/jwt_tool` respectively, so they behave like any other system command.
+</Note>
+
+---
+
+## WiFi & Password Cracking
+
+WiFi auditing tools require a USB adapter that supports **monitor mode and packet injection**. Launch the container in `wpa2` mode (`./run-kali.sh wpa2`) to enable the `--privileged` flag needed by `hcxdumptool`.
+
+| Tool | Source | Purpose |
+|------|--------|---------|
+| **Hashcat** | APT (`hashcat`) | GPU-accelerated password cracking (WPA2, NTLM, MD5…) |
+| **John the Ripper** | APT (`john`) | CPU-based cracker with format auto-detection |
+| **Hydra** | APT (`hydra`) | Network protocol brute-forcer (SSH, FTP, HTTP…) |
+| **Medusa** | APT (`medusa`) | Parallel network login brute-forcer |
+| **Aircrack-ng** | APT (`aircrack-ng`) | WEP/WPA key recovery, monitor mode management |
+| **hcxdumptool** | APT (`hcxdumptool`) | PMKID and EAPOL handshake capture |
+| **hcxtools** | APT (`hcxtools`) | `.pcapng` → `.hc22000` conversion for Hashcat |
+| **Wifite** | APT (`wifite`) | Automated WiFi auditing framework |
+| **Reaver** | APT (`reaver`) | WPS PIN brute-force attack |
+| **Pixiewps** | APT (`pixiewps`) | Offline WPS Pixie Dust attack |
+
+```bash
+# Full WPA2 capture → crack workflow
+./run-kali.sh wpa2               # Start container with privileged access
+setup-wifi.sh                    # Put adapter into monitor mode
+hcxdumptool -i wlan0mon -o /root/pentest/handshakes/capture.pcapng --active -c 6
+hcxpcapngtool -o capture.hc22000 capture.pcapng
+hashcat -m 22000 capture.hc22000 /usr/share/wordlists/rockyou.txt -r /usr/share/hashcat/rules/best64.rule -O
+```
+
+---
+
+## Active Directory
+
+The AD toolkit covers every phase of a Windows domain engagement — from initial enumeration through Kerberos attacks, certificate abuse, and credential extraction.
+
+| Tool | Source | Purpose |
+|------|--------|---------|
+| **Impacket** | APT (`impacket-scripts`) | NTLM relay, Kerberos, SMB, WMI, LDAP |
+| **BloodHound** | APT (`bloodhound`) | Attack path analysis and AD relationship graphing |
+| **NetExec** | PyPI (GitHub) | Modern successor to CrackMapExec for lateral movement |
+| **CrackMapExec** | APT (`crackmapexec`) | SMB, WMI, LDAP enumeration and lateral movement |
+| **Certipy** | PyPI (`certipy-ad`) | Active Directory Certificate Services (ADCS) attacks |
+| **Kerbrute** | PyPI (`kerbrute`) | Kerberos pre-auth user enumeration and brute-force |
+| **Responder** | APT (`responder`) | LLMNR/NBT-NS/MDNS poisoning and credential capture |
+| **Evil-WinRM** | APT (`evil-winrm`) | WinRM shell with upload/download and PowerShell support |
+| **ldapdomaindump** | PyPI | LDAP-based domain enumeration and HTML report generation |
+| **adidnsdump** | PyPI | Active Directory Integrated DNS zone enumeration |
+
+```bash
+# Common AD workflow examples
+nxe smb 10.10.10.0/24 -u admin -p 'Password123'   # Enum with NetExec
+responder -I eth0 -A                                 # Passive LLMNR capture
+secretsdump.py domain/user:pass@dc-ip               # Dump credentials
+bloodhound-python -u user -p pass -d domain.local   # Collect BloodHound data
+```
+
+---
+
+## AV Evasion
+
+These tools are installed under `/opt/` and are designed for generating and testing evasive payloads in authorized environments.
+
+| Tool | Source | Purpose |
+|------|--------|---------|
+| **Veil Framework** | GitHub (`/opt/Veil`) | AV-evasive payload generation in multiple languages |
+| **TheFatRat** | GitHub (`/opt/TheFatRat`) | Backdoor generation with automatic encoding |
+| **Backdoor Factory** | GitHub (`/opt/backdoor-factory`) | Inject shellcode into existing PE/ELF binaries |
+
+<Warning>
+  AV evasion tools must only be used in authorized penetration tests or controlled lab environments. Generating malicious payloads for use against systems you do not own or have written permission to test is illegal in most jurisdictions.
+</Warning>
+
+---
+
+## Forensics
+
+Digital forensics tools are installed system-wide and cover memory analysis, firmware inspection, disk examination, and steganography.
+
+| Tool | Source | Purpose |
+|------|--------|---------|
+| **Volatility 3** | PyPI (`volatility3`) | Memory dump analysis and artifact extraction |
+| **Binwalk** | APT (`binwalk`) | Firmware signature scanning and file extraction |
+| **Sleuth Kit** | APT (`sleuthkit`) | File system layer analysis and timeline generation |
+| **Autopsy** | APT (`autopsy`) | GUI front-end for Sleuth Kit investigations |
+| **Steghide** | APT (`steghide`) | Embed and extract hidden data in JPEG/BMP/WAV/AU files |
+| **Stegseek** | GitHub `.deb` (v0.6) | High-speed Steghide cracker using wordlists |
+
+```bash
+# Memory forensics with Volatility 3
+vol -f memory.dmp windows.pslist
+vol -f memory.dmp windows.netscan
+vol -f memory.dmp windows.dumpfiles --pid 1234
+```
+
+---
+
+## Post-Exploitation
+
+Post-exploitation tooling focuses on privilege escalation enumeration, process surveillance, and scriptable shell management.
+
+| Tool | Source | Purpose |
+|------|--------|---------|
+| **LinPEAS** | GitHub (PEASS-ng) | `/opt/PEAS/linpeas.sh` — automated Linux privesc enumeration |
+| **WinPEAS** | GitHub (PEASS-ng) | `/opt/PEAS/winPEASany.exe` — Windows privesc enumeration |
+| **Linux Exploit Suggester** | GitHub | `/opt/privesc/linux-exploit-suggester.sh` — kernel exploit hints |
+| **LSE (Linux Smart Enum)** | GitHub | `/opt/privesc/lse.sh` — detailed Linux environment enumeration |
+| **pspy** | GitHub (v1.2.1) | `/opt/privesc/pspy64` — unprivileged process and cron monitoring |
+| **Pwncat** | PyPI (`pwncat-cs`) | Enhanced reverse/bind shell with automatic TTY upgrade |
+| **pwntools** | PyPI (`pwntools`) | CTF-focused exploit development framework |
+| **paramiko** | PyPI | SSH2 protocol library for Python automation |
+
+```bash
+# Privilege escalation workflow
+linpeas | tee /root/pentest/loot/linpeas_output.txt
+les                                # Linux Exploit Suggester
+/opt/privesc/pspy64               # Monitor processes without root
+```
+
+---
+
+## Networking & Tunneling
+
+Full traffic analysis and tunneling stack for pivoting through multi-hop networks and routing traffic through compromised hosts.
+
+| Tool | Source | Purpose |
+|------|--------|---------|
+| **Wireshark** | APT (`wireshark`) + X11 | Full GUI packet analysis (forwarded via `$DISPLAY`) |
+| **TCPDump** | APT (`tcpdump`) | CLI packet capture with BPF filter support |
+| **Netcat** | APT (`netcat-openbsd`) | TCP/UDP Swiss army knife |
+| **Socat** | APT (`socat`) | Bidirectional relay with SSL/TLS support |
+| **Proxychains-ng** | APT (`proxychains-ng`) | Route tool traffic through SOCKS4/5 or HTTP proxies |
+| **Chisel** | APT (`chisel`) | HTTP-tunneled TCP port forwarding |
+| **Ligolo-ng** | GitHub (v0.6.2) | Reverse tunnel agent for transparent network pivoting |
+| **SSHuttle** | APT (`sshuttle`) | VPN-over-SSH for full subnet routing |
+| **OpenVPN** | APT (`openvpn`) | Connect to TryHackMe and HackTheBox VPN configs |
+
+```bash
+# TryHackMe / HackTheBox VPN
+openvpn --config /root/pentest/vpn/your_config.ovpn --dev tun
+
+# Pivot with Ligolo-ng agent
+ligolo-ng_agent -connect <proxy-ip>:11601 -ignore-cert
+
+# Chisel port forward
+chisel client <server>:8080 R:3389:localhost:3389
+```
+
+---
+
+## OSINT & Social Engineering
+
+Open-source intelligence tools and social engineering frameworks for information gathering and phishing simulation.
+
+| Tool | Source | Purpose |
+|------|--------|---------|
+| **Maltego** | APT (`maltego`) | Visual link analysis and OSINT graph exploration |
+| **theHarvester** | APT (`theharvester`) | Email, subdomain, and host discovery from public sources |
+| **recon-ng** | APT (`recon-ng`) | Modular web reconnaissance framework |
+| **Shodan CLI** | PyPI (`shodan`) | Query Shodan's internet scan database from the CLI |
+| **Social Engineer Toolkit** | GitHub (`/opt/set`) | Phishing, credential harvesting, and payload delivery |
+| **RouterSploit** | GitHub (`/opt/routersploit`) | Exploitation framework for embedded devices and SCADA |
+
+---
+
+## Mobile Hacking
+
+Android reverse engineering and mobile security assessment tools for APK analysis and static/dynamic testing.
+
+| Tool | Source | Purpose |
+|------|--------|---------|
+| **APKTool** | APT (`apktool`) | Decompile, modify, and recompile APK files |
+| **Dex2Jar** | APT (`dex2jar`) | Convert `.dex` bytecode to `.jar` for Java decompilers |
+| **JADX** | GitHub (v1.5.1) | Decompile Dalvik bytecode to readable Java source |
+| **JADX-GUI** | GitHub (v1.5.1) | Graphical APK explorer (via X11 forwarding) |
+| **MobSF** | GitHub (`/opt/mobsf`) | Automated static/dynamic mobile security analysis |
+
+<Note>
+  JADX and JADX-GUI are installed to `/opt/jadx/` and symlinked at `/usr/local/bin/jadx` and `/usr/local/bin/jadx-gui`. GUI tools require X11 forwarding, which `run-kali.sh` enables automatically via `xhost +local:docker`.
+</Note>
+
+---
+
+## Shell Aliases
+
+The following aliases are written to `/root/.bashrc` during the image build, making frequently used tools instantly accessible:
+
+| Alias | Expands To | Tool |
+|-------|-----------|------|
+| `msf` | `msfconsole` | Metasploit Framework console |
+| `nxe` | `netexec` | NetExec (CrackMapExec successor) |
+| `cme` | `crackmapexec` | CrackMapExec |
+| `hc` | `hashcat` | Hashcat password cracker |
+| `veil` | `/opt/Veil/Veil.py` | Veil Framework |
+| `fatrat` | `cd /opt/TheFatRat && ./fatrat` | TheFatRat backdoor generator |
+| `vol` | `vol` | Volatility 3 |
+| `set` | `setoolkit` | Social Engineer Toolkit |
+| `rsf` | `routersploit` | RouterSploit |
+| `linpeas` | `/opt/PEAS/linpeas.sh` | LinPEAS privilege escalation enum |
+| `les` | `/opt/privesc/linux-exploit-suggester.sh` | Linux Exploit Suggester |
+
+The shell also adds `/root/pentest/scripts` to `$PATH`, so any custom scripts you drop into `./data/scripts/` on the host are immediately executable inside the container.

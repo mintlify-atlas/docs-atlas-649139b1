@@ -1,0 +1,224 @@
+---
+title: "Contributing to Kali Portable: Guidelines & Standards"
+sidebarTitle: "Contributing"
+description: "How to contribute to Kali Portable: reporting bugs, submitting features, Dockerfile coding standards, required tests, and security vulnerability disclosure."
+---
+
+Kali Portable is an open project and all contributions are welcome — whether you're fixing a broken package install, adding a new red-team tool, improving documentation, or hardening the Dockerfile. To keep the image reliable, reproducible, and safe for everyone, please follow the guidelines below before opening a Pull Request. When in doubt, open an Issue first to discuss your idea with the maintainer.
+
+## Ways to Contribute
+
+<CardGroup cols={3}>
+  <Card title="Report a Bug" icon="bug">
+    Open a [GitHub Issue](https://github.com/V0rt3xS0urc3/RedTeam-Portfolio/issues) with your Docker version, host OS, full reproduction steps, and relevant logs or screenshots.
+  </Card>
+  <Card title="Request a Feature" icon="lightbulb">
+    Open a [GitHub Issue](https://github.com/V0rt3xS0urc3/RedTeam-Portfolio/issues) describing the tool or capability you'd like added, along with its use case and any licensing considerations.
+  </Card>
+  <Card title="Submit a Pull Request" icon="code-pull-request">
+    Fork the repository, follow the workflow below, and open a PR against the `main` branch. All PRs require a passing build and the mandatory test checklist.
+  </Card>
+</CardGroup>
+
+## Pull Request Workflow
+
+<Steps>
+  <Step title="Fork the repository">
+    Click **Fork** on GitHub to create your own copy of `V0rt3xS0urc3/RedTeam-Portfolio`. Clone your fork locally:
+
+    ```bash
+    git clone https://github.com/<your-username>/RedTeam-Portfolio.git
+    cd RedTeam-Portfolio/kali-portable
+    ```
+  </Step>
+
+  <Step title="Create a descriptive branch">
+    Use the `fix/`, `feat/`, or `docs/` prefix so the purpose of the branch is immediately clear:
+
+    ```bash
+    # Bug fix
+    git checkout -b fix/error-hashcat-gpu
+
+    # New feature
+    git checkout -b feat/soporte-amd-rocm
+
+    # Documentation improvement
+    git checkout -b docs/mejora-instalacion-wsl
+    ```
+  </Step>
+
+  <Step title="Make your changes">
+    Follow the **Dockerfile Standards** and **Bash Script Standards** sections below. Keep changes focused — one logical improvement per PR makes review faster and keeps the git history clean.
+  </Step>
+
+  <Step title="Verify the build">
+    Always confirm the image builds successfully and the container launches before pushing:
+
+    ```bash
+    cd docker
+    docker build -t kali-pentest-test .
+    docker run --rm -it kali-pentest-test bash
+    ```
+
+    Run through the full **Required Tests** checklist in the section below.
+  </Step>
+
+  <Step title="Commit with conventional commit format">
+    Use the `fix:`, `feat:`, or `docs:` prefix in every commit message so the changelog can be generated automatically:
+
+    ```bash
+    git commit -m "fix: corregir detección de GPU en contenedores WSL2"
+    git commit -m "feat: agregar soporte para reglas Hashcat personalizadas"
+    git commit -m "docs: actualizar instrucciones de instalación en macOS"
+    ```
+  </Step>
+
+  <Step title="Push and open a Pull Request">
+    Push your branch to your fork and open a PR against the `main` branch of the upstream repository:
+
+    ```bash
+    git push origin fix/error-hashcat-gpu
+    ```
+
+    In the PR description, summarize what changed, why it was needed, and which items from the required tests checklist you verified. Link any related Issues with `Closes #123`.
+  </Step>
+</Steps>
+
+## Coding Standards
+
+### Dockerfile Standards
+
+Consistent Dockerfile style keeps the image lean and the layer cache effective.
+
+<CardGroup cols={1}>
+  <Card title="Always use --no-install-recommends" icon="circle-check">
+    Prevents `apt` from pulling in optional dependencies that bloat the image without adding value to the pentesting toolkit.
+
+    ```dockerfile
+    RUN apt update && apt install -y --no-install-recommends \
+        nmap masscan nikto \
+        && apt clean && rm -rf /var/lib/apt/lists/*
+    ```
+  </Card>
+  <Card title="Clean the apt cache in the same RUN layer" icon="circle-check">
+    Always append `&& apt clean && rm -rf /var/lib/apt/lists/*` to every `apt install` block. Cleaning in a separate `RUN` creates a new layer and does **not** reduce image size.
+  </Card>
+  <Card title="Leverage Docker layer caching" icon="circle-check">
+    Group logically related installs in a single `RUN` block, but keep independent tool groups in separate layers. This way a failure in one section doesn't invalidate the cache for unrelated sections.
+  </Card>
+</CardGroup>
+
+### Bash Script Standards
+
+All scripts in `scripts/` must follow these conventions to stay consistent with the existing codebase:
+
+- **Always start with `#!/bin/bash`** — do not use `/bin/sh` or `/usr/bin/env bash`
+- **Validate inputs early** — check that required files and directories exist before operating on them
+- **Use color variables for user output** — define `RED`, `GREEN`, `CYAN`, `YELLOW`, and `NC` at the top of the script and use them consistently for all printed messages
+- **Never hardcode credentials, tokens, or API keys** — use environment variables or volume-mounted files for any sensitive data
+
+```bash
+#!/bin/bash
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
+NC='\033[0m'
+
+# Validate required argument
+if [ -z "$1" ]; then
+    echo -e "${RED}[!] Usage: $0 <capture.hc22000>${NC}"
+    exit 1
+fi
+
+# Validate file exists before operating
+if [ ! -f "$1" ]; then
+    echo -e "${RED}[!] File not found: $1${NC}"
+    exit 1
+fi
+```
+
+## Required Tests Before Opening a PR
+
+All five items must pass before a PR will be reviewed. Check them off in your PR description.
+
+<CardGroup cols={1}>
+  <Card title="1. Clean Docker build" icon="hammer">
+    ```bash
+    cd kali-portable/docker
+    docker build -t kali-pentest-test .
+    ```
+    The build must complete with exit code `0` and no error messages.
+  </Card>
+  <Card title="2. Normal mode launch and banner" icon="terminal">
+    ```bash
+    cd kali-portable
+    ./run-kali.sh normal
+    ```
+    The container must start, display the Kali Portable banner, and drop into an interactive shell at `/root/pentest`.
+  </Card>
+  <Card title="3. Volume mounts without permission errors" icon="folder-open">
+    After launch, verify that `data/` subdirectories are accessible:
+
+    ```bash
+    # Inside the container
+    ls /root/pentest/
+    touch /root/pentest/loot/test.txt && echo "✅ Write OK"
+    ```
+  </Card>
+  <Card title="4. GPU detection on NVIDIA hosts" icon="microchip">
+    On a host with NVIDIA drivers and the Container Toolkit configured:
+
+    ```bash
+    # Inside the container
+    hashcat -I
+    # Must list at least one NVIDIA device under 'OpenCL Info'
+    ```
+  </Card>
+  <Card title="5. Helper scripts show usage/help" icon="circle-question">
+    ```bash
+    # Inside the container
+    auto-crack-wpa2.sh --help || auto-crack-wpa2.sh
+    setup-wifi.sh --help || setup-wifi.sh
+    ```
+    Both scripts must print usage instructions or argument validation messages without crashing.
+  </Card>
+</CardGroup>
+
+## Security Vulnerability Reporting
+
+<Warning>
+  **Do NOT open a public GitHub Issue for security vulnerabilities.** Public disclosure before a patch is available puts all users at risk. Use the private reporting process below.
+</Warning>
+
+Use [GitHub Private Vulnerability Reporting](https://github.com/V0rt3xS0urc3/RedTeam-Portfolio/security/advisories/new) to submit security issues confidentially. Include the following in your report:
+
+1. **Affected component** — Dockerfile, a specific script, a dependency, or the overall configuration
+2. **Reproduction steps** — the minimal sequence of commands needed to trigger the vulnerability
+3. **Potential impact** — what an attacker could achieve (e.g., container escape, credential exposure, privilege escalation)
+4. **Suggested fix** *(optional but appreciated)* — a patch, configuration change, or alternative approach
+
+### What NOT to report here
+
+- General support questions or configuration mistakes — open a regular [Issue](https://github.com/V0rt3xS0urc3/RedTeam-Portfolio/issues) instead
+- Vulnerabilities in bundled third-party tools (Metasploit, Hashcat, etc.) — report those directly to the upstream maintainers
+- Issues caused by running the container outside its intended scope (e.g., exposing ports to the public internet)
+
+### Response Timeline
+
+| Stage | Estimated Time |
+|---|---|
+| Acknowledgment | 24–48 hours |
+| Technical evaluation | 3–5 business days |
+| Patch or mitigation | 7–14 days (complexity dependent) |
+| Public fix release | Immediately after validation |
+
+If your report is confirmed valid, your name will be credited in the security changelog unless you prefer to remain anonymous.
+
+## License
+
+By submitting a Pull Request, you agree that your contribution will be distributed under the project's [MIT License](https://github.com/V0rt3xS0urc3/RedTeam-Portfolio/blob/main/LICENSE). If your contribution includes third-party tools, resources, or code, clearly state their origin and license in the PR description.
+
+<Info>
+  Questions before contributing? Open an Issue of type **Question** or reach out directly: [LinkedIn](https://www.linkedin.com/in/diegoarriagadazamora) · [GitHub](https://github.com/V0rt3xS0urc3). Thanks for helping keep Kali Portable professional, secure, and useful for the community. 🔐
+</Info>

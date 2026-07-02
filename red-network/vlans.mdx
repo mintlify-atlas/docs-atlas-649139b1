@@ -1,0 +1,122 @@
+---
+title: "VLAN Segmentation: 6 Isolated Network Segments"
+sidebarTitle: "VLANs"
+description: "Complete VLAN design for the home lab: 6 segments for cameras, gaming, multimedia, smartphones, guests, and administration with IP addressing and internet access policies."
+---
+
+Network segmentation is the foundation of this project's security model. Without VLANs, every device on the home network — cameras, gaming PCs, guest phones, the admin machine — shares the same broadcast domain and can potentially reach each other. A compromised smart TV or a guest device could then pivot to cameras, or worse, to the admin management plane. By placing each device category into its own VLAN with explicit inter-VLAN access policies enforced by the Cisco 892FSP, each segment becomes an independent trust zone. Devices within a VLAN can communicate freely with each other; communication across VLANs requires passing through the router's ACL policy.
+
+## VLAN Table
+
+| VLAN ID | Name | Network | Purpose | Internet Access |
+|---------|------|---------|---------|----------------|
+| 10 | CAMARAS | 10.0.10.0/29 | IP cameras and NVR. Fully isolated. | **No** |
+| 20 | MULTIMEDIA | 10.0.20.0/29 | Smart TV, projector | **Yes** |
+| 30 | SMARTPHONES | 10.0.30.0/29 | Personal smartphones, study laptop | **Yes** |
+| 40 | INVITADOS | 10.0.40.0/28 | Guest WiFi. Isolated from internal VLANs. | **Yes** (limited) |
+| 50 | GAMING | 10.0.50.0/29 | Gaming PCs. Maximum QoS priority. | **Yes** |
+| 99 | ADMIN | 10.0.99.0/29 | Router management. Admin-only access. | **Yes** |
+
+<Note>
+  VLANs 10, 20, 30, 50, and 99 use **/29** subnets (255.255.255.248), providing 6 usable host addresses per segment. This is intentionally tight — each VLAN holds a small, known number of devices. VLAN 40 (INVITADOS) uses a **/28** (255.255.255.240), giving 14 usable addresses to accommodate a variable number of guest devices.
+</Note>
+
+## Security Design Per VLAN
+
+<Steps>
+  <Step title="CAMARAS — VLAN 10 (10.0.10.0/29)">
+    The strictest policy in the network. All outbound internet access is blocked at the SVI level — cameras cannot send data to external servers, cannot receive firmware commands from the cloud, and cannot be contacted from any other VLAN. Even if a camera is compromised, it is completely contained within this segment. The NVR (Network Video Recorder) is also on VLAN 10 and is accessible only from the ADMIN VLAN via explicit ACL permit.
+  </Step>
+  <Step title="MULTIMEDIA — VLAN 20 (10.0.20.0/29)">
+    Standard internet access for smart TVs and projectors. Inter-VLAN communication to other segments is blocked — a vulnerable smart TV cannot reach gaming PCs or cameras.
+  </Step>
+  <Step title="SMARTPHONES — VLAN 30 (10.0.30.0/29)">
+    Personal smartphones and the study laptop. Full internet access. Isolated from CAMARAS, GAMING, and ADMIN VLANs by default ACL rules.
+  </Step>
+  <Step title="INVITADOS — VLAN 40 (10.0.40.0/28)">
+    Internet access only. ACLs explicitly deny all traffic destined to any internal 10.0.0.0/16 subnet, ensuring guests cannot probe or access any internal device, camera, NAS, or management interface.
+  </Step>
+  <Step title="GAMING — VLAN 50 (10.0.50.0/29)">
+    Full internet access with maximum QoS priority. Gaming PCs in this segment receive preferential treatment at the WAN interface — 40% of outbound bandwidth is reserved exclusively for this VLAN's traffic class. See the [QoS & ACLs](/red-network/qos-acls) page for the full policy configuration.
+  </Step>
+  <Step title="ADMIN — VLAN 99 (10.0.99.0/29)">
+    The management plane. The admin PC and the WireGuard VPN server live here. This VLAN has access to all other VLANs for management purposes (e.g., reaching the NVR on VLAN 10 or monitoring any segment). Hardened ACLs ensure no other VLAN can initiate connections into VLAN 99.
+  </Step>
+</Steps>
+
+## Cisco DHCP Configuration
+
+The Cisco 892FSP runs DHCP server pools for every VLAN. All pools exclude the `.1` gateway address from assignment.
+
+```text
+ip dhcp excluded-address 10.0.10.1
+ip dhcp excluded-address 10.0.20.1
+ip dhcp excluded-address 10.0.30.1
+ip dhcp excluded-address 10.0.40.1
+ip dhcp excluded-address 10.0.50.1
+ip dhcp excluded-address 10.0.99.1
+
+ip dhcp pool VLAN10-CAMARAS
+ network 10.0.10.0 255.255.255.248
+ default-router 10.0.10.1
+ dns-server 8.8.8.8
+
+ip dhcp pool VLAN20-MULTIMEDIA
+ network 10.0.20.0 255.255.255.248
+ default-router 10.0.20.1
+ dns-server 8.8.8.8
+
+ip dhcp pool VLAN30-SMARTPHONES
+ network 10.0.30.0 255.255.255.248
+ default-router 10.0.30.1
+ dns-server 8.8.8.8
+
+ip dhcp pool VLAN40-INVITADOS
+ network 10.0.40.0 255.255.255.240
+ default-router 10.0.40.1
+ dns-server 8.8.8.8
+
+ip dhcp pool VLAN50-GAMING
+ network 10.0.50.0 255.255.255.248
+ default-router 10.0.50.1
+ dns-server 8.8.8.8
+
+ip dhcp pool VLAN99-ADMIN
+ network 10.0.99.0 255.255.255.248
+ default-router 10.0.99.1
+ dns-server 8.8.8.8
+```
+
+## SVI (Switched Virtual Interface) Configuration
+
+Each VLAN's SVI acts as the default gateway for that segment and is the point where ACLs are applied.
+
+```text
+interface Vlan10
+ description CAMARAS
+ ip address 10.0.10.1 255.255.255.248
+
+interface Vlan20
+ description MULTIMEDIA
+ ip address 10.0.20.1 255.255.255.248
+
+interface Vlan30
+ description SMARTPHONES
+ ip address 10.0.30.1 255.255.255.248
+
+interface Vlan40
+ description INVITADOS
+ ip address 10.0.40.1 255.255.255.240
+
+interface Vlan50
+ description GAMING
+ ip address 10.0.50.1 255.255.255.248
+
+interface Vlan99
+ description ADMIN
+ ip address 10.0.99.1 255.255.255.248
+```
+
+<Tip>
+  When adding a new device to the network, verify it lands on the correct VLAN by checking its assigned IP against the subnet table above. A camera receiving a 10.0.30.x address, for example, means it is connected to the wrong port or SSID and would have unintended internet access.
+</Tip>

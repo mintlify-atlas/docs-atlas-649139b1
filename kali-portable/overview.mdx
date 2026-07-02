@@ -1,0 +1,63 @@
+---
+title: "Kali Portable: Full Red Team Station in Docker"
+sidebarTitle: "Overview"
+description: "Kali Portable is a Docker-based Kali Linux environment with 100+ pentesting tools, NVIDIA GPU acceleration for Hashcat, and automated WiFi auditing scripts."
+---
+
+Kali Portable Full is a complete, containerized red team workstation built on top of Kali Linux Rolling. Packaged as a single Docker image, it ships over 100 offensive security tools — from network scanners and exploit frameworks to Active Directory attack suites and forensic analyzers — so you can spin up a fully operational pentesting station on any Linux host in minutes. It was created by Diego Arriagada Zamora (V0rt3xS0urc3) and is designed for ethical hackers, security students, and practitioners who want a reproducible, GPU-accelerated environment that works equally well on a fresh laptop or an existing workstation.
+
+## Key Features
+
+<CardGroup cols={2}>
+  <Card title="100+ Pentesting Tools Pre-installed" icon="shield-halved">
+    A curated arsenal covering recon, exploitation, web auditing, Active Directory, post-exploitation, forensics, mobile hacking, and more — all ready to use the moment the container starts.
+  </Card>
+  <Card title="NVIDIA GPU Acceleration for Hashcat" icon="bolt">
+    OpenCL is pre-configured inside the image. When NVIDIA Container Toolkit is present on the host, Hashcat automatically uses the GPU for dramatically faster password cracking.
+  </Card>
+  <Card title="Automated WPA2 Cracking Pipeline" icon="wifi">
+    The included `auto-crack-wpa2.sh` script orchestrates the full capture-to-crack workflow: monitor mode setup, handshake capture with `hcxdumptool`, format conversion, and Hashcat with `best64.rule`.
+  </Card>
+  <Card title="Persistent Data Volume" icon="database">
+    The `./data/` directory on the host maps to `/root/pentest` inside the container. Wordlists, handshakes, loot, VPN configs, and reports all survive container restarts automatically.
+  </Card>
+  <Card title="Two Run Modes: Normal and WPA2" icon="play">
+    `run-kali.sh normal` launches the full toolset with X11 forwarding for GUI apps (Burp Suite, Wireshark). `run-kali.sh wpa2` adds `--privileged` access required for USB WiFi hardware and monitor mode.
+  </Card>
+  <Card title="Compatible with THM, HTB, and DockerLabs" icon="flag">
+    OpenVPN is pre-installed and configured. Drop your `.ovpn` file into `./data/vpn/` and connect to TryHackMe, HackTheBox, or any VPN-based practice platform straight from inside the container.
+  </Card>
+</CardGroup>
+
+## Requirements
+
+Before installing Kali Portable, make sure your system meets the following requirements:
+
+- **Docker 20.10 or higher** — the installer script will install Docker automatically if it is not present
+- **~15 GB of free disk space** — the full image and downloaded wordlists require approximately 15 GB
+- **NVIDIA Container Toolkit** *(optional)* — required only for GPU-accelerated Hashcat; without it, cracking falls back to CPU
+- **USB WiFi adapter compatible with monitor mode and packet injection** *(optional)* — required only for live WiFi auditing; recommended adapters include the Alfa AWUS036NHA, TP-Link TL-WN722N v1, and Panda PAU09
+
+## Project Structure
+
+```text
+kali-portable/
+├── docker/
+│   └── Dockerfile              # Image build recipe
+├── scripts/
+│   ├── run-kali.sh             # Main launcher script
+│   ├── install-on-new-pc.sh    # Automated installer
+│   ├── auto-crack-wpa2.sh      # WPA2 cracking pipeline
+│   └── setup-wifi.sh           # Monitor mode setup
+├── data/                       # Persistent host volume
+│   ├── wordlists/              # Dictionaries (rockyou.txt, common.txt)
+│   ├── rules/                  # Hashcat rules (best64, d3ad0ne, etc.)
+│   ├── handshakes/             # Captured WiFi handshakes
+│   ├── loot/                   # Cracked passwords and results
+│   └── vpn/                    # OpenVPN configuration files
+├── run-kali.sh                 # Top-level launcher (symlink/copy)
+├── README.md
+└── LICENSE
+```
+
+Ready to get started? Head over to the [Installation guide](/kali-portable/installation) to set up Kali Portable on your machine.

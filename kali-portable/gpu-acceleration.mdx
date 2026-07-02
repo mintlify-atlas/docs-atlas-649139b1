@@ -1,0 +1,241 @@
+---
+title: "NVIDIA GPU Acceleration for Hashcat in Docker"
+sidebarTitle: "GPU Acceleration"
+description: "Configure NVIDIA GPU passthrough in Kali Portable for Hashcat cracking. Covers NVIDIA Container Toolkit setup, OpenCL configuration, and verifying GPU detection."
+---
+
+GPU-accelerated password cracking is one of the primary reasons to run Hashcat inside a dedicated Docker environment rather than a virtual machine. When an NVIDIA GPU is passed through to the container, Hashcat can process hundreds of millions — or even billions — of WPA2 candidates per second, compared to a few million on a modern CPU. Kali Portable automates GPU detection at startup: `run-kali.sh` queries `nvidia-smi` on the host before launching, and if a compatible GPU is found, it adds `--gpus all` to the `docker run` command automatically. The OpenCL layer (`ocl-icd-libopencl1`) and NVIDIA ICD configuration are baked into the image at build time so no driver setup is needed inside the container.
+
+<Warning>
+  GPU passthrough requires a **Linux host**. It does not work natively on macOS (no NVIDIA driver support) or Windows without WSL2 configured with GPU passthrough. On unsupported host platforms, Kali Portable falls back to CPU mode automatically.
+</Warning>
+
+---
+
+## Requirements
+
+Before GPU acceleration works inside the container, three things must be in place on the **host machine**:
+
+| Requirement | Notes |
+|-------------|-------|
+| **NVIDIA GPU** | Any CUDA-capable card (GTX 10xx and newer recommended) |
+| **NVIDIA drivers on host** | Install from `nvidia.com` or your distro's driver manager; verify with `nvidia-smi` |
+| **NVIDIA Container Toolkit** | The `nvidia-container-toolkit` package — bridges Docker and the host GPU driver |
+
+<Note>
+  The NVIDIA driver version on the host must be equal to or newer than the CUDA version referenced by the container image. The Kali Portable image itself does not bundle CUDA — it relies on the host driver exposed through the container runtime.
+</Note>
+
+---
+
+## Setup
+
+<Steps>
+  <Step title="Install NVIDIA Container Toolkit on the host">
+    Run the following commands on your Linux host to add the NVIDIA Docker repository and install the toolkit:
+
+    ```bash
+    # Ubuntu / Debian
+    distribution=$(. /etc/os-release; echo $ID$VERSION_ID)
+    curl -s -L https://nvidia.github.io/nvidia-docker/gpgkey | sudo apt-key add -
+    curl -s -L https://nvidia.github.io/nvidia-docker/$distribution/nvidia-docker.list \
+      | sudo tee /etc/apt/sources.list.d/nvidia-docker.list
+    sudo apt update && sudo apt install -y nvidia-container-toolkit
+    sudo systemctl restart docker
+    ```
+
+    After installation, Docker gains the `--gpus` flag and can pass GPU resources into containers.
+  </Step>
+
+  <Step title="Verify the toolkit works">
+    Confirm that Docker can see your GPU by running the official NVIDIA CUDA image:
+
+    ```bash
+    docker run --rm --gpus all nvidia/cuda:12.3.1-base-ubuntu22.04 nvidia-smi
+    ```
+
+    You should see a table listing your GPU model, driver version, and CUDA version. If this command fails, revisit Step 1 or check `nvidia-ctk` configuration below.
+  </Step>
+
+  <Step title="Launch Kali Portable (GPU auto-detected)">
+    Start the container normally — `run-kali.sh` performs the GPU check automatically:
+
+    ```bash
+    ./run-kali.sh normal
+    ```
+
+    Expected output when a GPU is detected:
+
+    ```
+    🚀 GPU NVIDIA detectada: Hashcat con aceleración GPU ACTIVADA
+    ✅ Modo normal: herramientas CLI + GUI (Burp, Wireshark)
+    ```
+
+    If no GPU is found:
+
+    ```
+    💻 Sin GPU detectada: Hashcat usará CPU (más lento)
+    ```
+  </Step>
+
+  <Step title="Verify GPU detection inside the container">
+    Once inside the container, confirm Hashcat can see your GPU:
+
+    ```bash
+    hashcat -I
+    ```
+
+    Expected output (example with an RTX 3070):
+
+    ```
+    OpenCL Info:
+    ============
+
+    OpenCL Platform #1
+      Vendor..: NVIDIA Corporation
+      Name....: NVIDIA CUDA
+      Version.: OpenCL 3.0 CUDA 12.x
+
+      Backend Device #1 (Alias: #1)
+        Type...: GPU
+        Vendor..: NVIDIA Corporation
+        Name...: NVIDIA GeForce RTX 3070
+        ...
+    ```
+
+    If `hashcat -I` lists your GPU under `Type: GPU`, acceleration is fully operational.
+  </Step>
+</Steps>
+
+---
+
+## OpenCL Configuration in the Image
+
+The Dockerfile configures the OpenCL layer during build so Hashcat can discover the NVIDIA platform at runtime. The relevant build steps are:
+
+```dockerfile
+# Install OpenCL ICD loader
+RUN apt update && apt install -y --no-install-recommends ocl-icd-libopencl1 \
+    && mkdir -p /etc/OpenCL/vendors \
+    && echo "libnvidia-opencl.so.1" > /etc/OpenCL/vendors/nvidia.icd \
+    && ldconfig \
+    && apt clean && rm -rf /var/lib/apt/lists/*
+```
+
+| Component | Role |
+|-----------|------|
+| `ocl-icd-libopencl1` | OpenCL Installable Client Driver (ICD) loader — the bridge between apps and platform drivers |
+| `/etc/OpenCL/vendors/nvidia.icd` | ICD registry file; tells the loader to look for `libnvidia-opencl.so.1` |
+| `libnvidia-opencl.so.1` | Provided by the **host** NVIDIA driver at container runtime via the `--gpus` flag |
+
+<Note>
+  `libnvidia-opencl.so.1` is **not** bundled in the image — it is injected by the NVIDIA Container Runtime from the host driver installation when Docker starts the container with `--gpus all`. This is why the host NVIDIA driver must be installed and why the toolkit is a prerequisite.
+</Note>
+
+---
+
+## Using GPU Acceleration with Hashcat
+
+### Basic GPU Attack
+
+```bash
+# Default GPU mode (-D 2), optimized kernel (-O), high workload (-w 3)
+hashcat -m 22000 -D 2 -O -w 3 capture.hc22000 /usr/share/wordlists/rockyou.txt
+```
+
+Flag reference:
+
+| Flag | Meaning |
+|------|---------|
+| `-m 22000` | Hash mode: WPA2-PMKID+EAPOL (use after `hcxpcapngtool` conversion) |
+| `-D 2` | Use GPU compute devices (1 = CPU, 2 = GPU) |
+| `-O` | Optimized kernel — reduces max password length to 32 chars for speed |
+| `-w 3` | Workload profile 3 (High) — uses more GPU resources |
+
+### GPU Benchmark
+
+```bash
+# Benchmark WPA2 speed on your GPU
+hashcat -b -m 22000
+```
+
+This outputs the number of hash candidates per second your GPU can process against WPA2. Use this to estimate how long a given wordlist will take.
+
+### Dictionary + Rule on GPU
+
+```bash
+# best64 rule — fast and effective for common passwords
+hashcat -m 22000 -D 2 -O -w 3 capture.hc22000 \
+  /usr/share/wordlists/rockyou.txt \
+  -r /usr/share/hashcat/rules/best64.rule
+
+# d3ad0ne rule — deeper mutations, longer runtime
+hashcat -m 22000 -D 2 -O -w 3 capture.hc22000 \
+  /usr/share/wordlists/rockyou.txt \
+  -r /usr/share/hashcat/rules/d3ad0ne.rule
+```
+
+### Force CPU Mode (Fallback)
+
+If GPU acceleration is unavailable or you want to compare performance, force CPU mode with `-D 1`:
+
+```bash
+hashcat -m 22000 -D 1 -O capture.hc22000 /usr/share/wordlists/rockyou.txt
+```
+
+### Resuming an Interrupted Attack
+
+Hashcat checkpoints progress automatically. If the container is stopped mid-crack, resume exactly where it left off:
+
+```bash
+hashcat -m 22000 capture.hc22000 --restore
+```
+
+---
+
+## Performance
+
+<Tip>
+  GPU cracking can be **10–100× faster** than CPU for WPA2 (hash mode 22000). A mid-range NVIDIA RTX card (e.g., RTX 3060) typically achieves 400,000–600,000 H/s against WPA2, versus 5,000–15,000 H/s on a modern CPU. For large wordlists like `rockyou.txt` + `d3ad0ne.rule` (millions of candidates), this difference translates from hours on CPU to minutes on GPU.
+</Tip>
+
+---
+
+## Troubleshooting
+
+### NVIDIA Container Toolkit Not Detected
+
+If `run-kali.sh` reports no GPU, or `hashcat -I` does not list a GPU device, reconfigure the container runtime and restart Docker:
+
+```bash
+sudo nvidia-ctk runtime configure --runtime=docker
+sudo systemctl restart docker
+```
+
+Then verify Docker can see the GPU:
+
+```bash
+docker run --rm --gpus all nvidia/cuda:12.3.1-base-ubuntu22.04 nvidia-smi
+```
+
+### hashcat -I Shows No GPU
+
+If the toolkit is installed but Hashcat still reports only CPU devices, confirm the container was started with `--gpus all` (which `run-kali.sh` does automatically when GPU is detected) and that `nvidia-smi` works on the host:
+
+```bash
+# On the host
+nvidia-smi
+
+# Check Docker runtime configuration
+docker info | grep -i runtime
+```
+
+The output of `docker info` should include `Runtimes: nvidia` after the toolkit is configured.
+
+### WSL2 on Windows
+
+GPU passthrough via WSL2 is possible but requires Windows 11 or Windows 10 21H2+, the CUDA on WSL driver package, and the NVIDIA Container Toolkit configured inside the WSL2 distribution. Standard Windows Docker Desktop does **not** support `--gpus` for Linux containers without this specific WSL2 GPU setup.
+
+<Warning>
+  macOS does not support NVIDIA CUDA (Apple dropped NVIDIA driver support after macOS Mojave). Kali Portable will run on macOS but GPU acceleration for Hashcat will not be available — all cracking will use CPU mode.
+</Warning>

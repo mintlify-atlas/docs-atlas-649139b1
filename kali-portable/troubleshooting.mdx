@@ -1,0 +1,217 @@
+---
+title: "Troubleshoot Kali Portable: Common Issues & Fixes"
+sidebarTitle: "Troubleshooting"
+description: "Solutions for common Kali Portable issues: GPU not detected, monitor mode failures, missing handshakes, permission errors, and Docker connectivity problems."
+---
+
+Most Kali Portable problems fall into one of four categories: GPU passthrough misconfiguration, WiFi adapter incompatibility, Docker daemon or permission issues, and X11 display forwarding errors. The accordion sections below cover the most frequently encountered issues, their root causes, and step-by-step fixes. Before diving in, always run `docker logs <container_id>` and `hashcat -I` (inside the container) as your first diagnostic steps — they surface 90% of errors immediately.
+
+<Tip>
+  Run `docker info` on your host to confirm the Docker daemon is active and that the NVIDIA runtime is registered (`Runtimes: nvidia runc`). This single command rules out the two most common root causes.
+</Tip>
+
+## Common Issues
+
+<Accordion title="GPU not detected by Hashcat">
+  **Symptoms:** Running `hashcat -I` inside the container shows no NVIDIA device, only the CPU backend, or outputs `No devices found/left`.
+
+  **Cause:** The NVIDIA Container Toolkit is installed but has not been registered with the Docker runtime, or the `docker` daemon was not restarted after configuration.
+
+  **Fix:** Run the following on your **host** machine, then relaunch the container:
+
+  ```bash
+  sudo nvidia-ctk runtime configure --runtime=docker
+  sudo systemctl restart docker
+  ```
+
+  Verify that GPU passthrough works before relaunching Kali Portable:
+
+  ```bash
+  docker run --rm --gpus all nvidia/cuda:12.3.1-base-ubuntu22.04 nvidia-smi
+  ```
+
+  You should see a table listing your GPU name, driver version, and CUDA version. Once confirmed, `run-kali.sh` will auto-detect the GPU and append `--gpus all` to the `docker run` command.
+
+  <Note>
+    On WSL2, GPU passthrough requires WSL2 kernel 5.10.43+ and the NVIDIA driver for WSL (not the Linux driver). Run `wsl --update` in a Windows terminal to ensure you have the latest kernel.
+  </Note>
+</Accordion>
+
+<Accordion title="Monitor mode not working / interface not found">
+  **Symptoms:** `setup-wifi.sh` reports no wireless interfaces, fails to create `wlan0mon`, or `iwconfig` shows no monitor-capable adapter.
+
+  **Cause:** Either the container was launched in `normal` mode (missing `--privileged`), or the USB WiFi adapter does not support monitor mode.
+
+  **Fix:** Always use `wpa2` mode for WiFi auditing:
+
+  ```bash
+  # On the host — NEVER inside the container
+  ./run-kali.sh wpa2
+  ```
+
+  Once inside the container, verify your adapter supports monitor mode before running `setup-wifi.sh`:
+
+  ```bash
+  # Check supported interface modes
+  iw list | grep -A 5 "Supported interface modes"
+  # The output must include 'monitor' in the list
+  ```
+
+  **Recommended USB adapters** with confirmed monitor mode support:
+  - Alfa AWUS036NHA (Atheros AR9271)
+  - TP-Link TL-WN722N **v1 only** (Atheros; v2/v3 use Realtek and do not support injection)
+  - Panda PAU09 (Ralink RT5572)
+
+  <Warning>
+    Most built-in laptop WiFi cards do **not** support monitor mode or packet injection. An external USB adapter is required for WPA2 capture workflows.
+  </Warning>
+</Accordion>
+
+<Accordion title="Handshake captured but password not found">
+  **Symptoms:** `hashcat` runs to completion without cracking the hash; `hashcat --show` returns no results.
+
+  **Cause:** Either the password is not present in the wordlist/rules combination you used, or the handshake capture is incomplete (zero WPA pairs recovered).
+
+  **Fix — Step 1:** Verify the handshake is valid before spending time cracking:
+
+  ```bash
+  hcxpcapngtool -o test.hc22000 capture.pcapng
+  # Look for: 'WPA pairs recovered: X' — must be >= 1
+  # If 0, the client did not complete a 4-way handshake during capture
+  ```
+
+  **Fix — Step 2:** If the handshake is valid but no password found, try a larger wordlist or more aggressive rules:
+
+  ```bash
+  # Use d3ad0ne rule (more mutations than best64)
+  auto-crack-wpa2.sh -r d3ad0ne.rule -w rockyou.txt capture.hc22000
+
+  # Use a larger SecLists wordlist
+  auto-crack-wpa2.sh \
+    -w /usr/share/seclists/Passwords/Common-Credentials/10-million-password-list-top-1000000.txt \
+    capture.hc22000
+
+  # Resume a previous session (Hashcat saves progress automatically)
+  hashcat -m 22000 capture.hc22000 --restore
+  ```
+
+  <Tip>
+    If the target password is 8+ characters mixing uppercase, lowercase, digits, and symbols, dictionary attacks are unlikely to succeed. Rule-based mutation (`d3ad0ne.rule`, `T0XlC.rule`) dramatically increases coverage of real-world password patterns.
+  </Tip>
+</Accordion>
+
+<Accordion title="Docker daemon not running">
+  **Symptoms:** Any `docker` command returns `Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?`
+
+  **Fix:**
+
+  ```bash
+  # Start the daemon
+  sudo systemctl start docker
+
+  # Enable auto-start on boot
+  sudo systemctl enable docker
+
+  # Add your user to the docker group to avoid sudo (requires re-login)
+  sudo usermod -aG docker $USER
+  ```
+
+  Log out and back in (or run `newgrp docker`) for the group membership to take effect. Verify with:
+
+  ```bash
+  docker info
+  ```
+
+  <Note>
+    On systems using `SysVinit` instead of `systemd` (older Debian, some WSL distributions), use `sudo service docker start` instead of `systemctl`.
+  </Note>
+</Accordion>
+
+<Accordion title="Volume permission errors">
+  **Symptoms:** Inside the container, accessing `/root/pentest/` (or subdirectories) returns `Permission denied`. On the host, files created by the container are owned by `root` and cannot be edited.
+
+  **Fix:** Reset ownership of the `data/` directory on the host, then ensure all scripts are executable:
+
+  ```bash
+  # Fix ownership on the host
+  sudo chown -R $USER:$USER ./data
+
+  # Ensure scripts are executable
+  chmod +x ./run-kali.sh ./scripts/*.sh
+  ```
+
+  <Info>
+    The container runs as `root` internally. Files it creates in mounted volumes appear on the host as owned by UID 0. The `chown` command above reclaims those files for your host user.
+  </Info>
+</Accordion>
+
+<Accordion title="GUI apps (Burp Suite, Wireshark) not opening">
+  **Symptoms:** Launching `burpsuite` or `wireshark` inside the container prints `Error: cannot open display :0` or `Authorization required, but no authorization protocol specified`.
+
+  **Cause:** X11 forwarding is not authorized. The `run-kali.sh` script calls `xhost +local:docker` automatically, but this may fail silently if no X server is running on the host (e.g., headless servers or some WSL configurations).
+
+  **Fix:** Run the following on the **host** before launching the container:
+
+  ```bash
+  # Grant the local Docker daemon access to your X11 display
+  xhost +local:docker
+
+  # Then launch the container normally
+  ./run-kali.sh normal
+  ```
+
+  <Warning>
+    `xhost +local:docker` opens X11 access to all local Docker containers, not just this one. Revert after your session with `xhost -local:docker` (this is done automatically by `run-kali.sh` on exit).
+  </Warning>
+
+  On WSL2, you need a Windows X server (e.g., VcXsrv or X410) running and `DISPLAY` exported:
+
+  ```bash
+  export DISPLAY=$(cat /etc/resolv.conf | grep nameserver | awk '{print $2}'):0
+  ```
+</Accordion>
+
+<Accordion title="Image build fails mid-way">
+  **Symptoms:** `docker build` exits with a non-zero code partway through, often citing a network timeout, `404 Not Found` for a package, or a failed `curl`/`wget` download.
+
+  **Cause:** Transient network issues, a temporarily unavailable Kali mirror, or a GitHub release URL that has changed.
+
+  **Fix:** Simply re-run the build — Docker caches every successfully completed layer, so only the failed step and everything after it will re-execute:
+
+  ```bash
+  cd kali-portable/docker
+  docker build -t kali-pentest-full .
+  ```
+
+  If the same layer fails repeatedly, check your internet connection and try again during off-peak hours. For persistent `apt` failures, try forcing a mirror refresh:
+
+  ```bash
+  docker build --no-cache -t kali-pentest-full .
+  ```
+
+  <Note>
+    Using `--no-cache` forces all layers to rebuild from scratch (~30–45 minutes). Only use it when a cached layer is genuinely stale or corrupt.
+  </Note>
+</Accordion>
+
+<Accordion title='"rev" command not found in container'>
+  **Symptoms:** A script inside the container fails with `rev: command not found`, or the container build log shows a warning about the missing binary.
+
+  **Cause:** The `rev` binary is absent from some Kali 2026.2+ builds due to a packaging change in `util-linux`.
+
+  **Fix:** The Dockerfile already includes an automatic Python 3 fallback that creates a compatible `/usr/local/bin/rev` if the binary is missing:
+
+  ```dockerfile
+  RUN if ! command -v rev &> /dev/null; then \
+      printf '#!/usr/bin/env python3\nimport sys\nfor line in sys.stdin:\n    print(line.rstrip("\n")[::-1])\n' \
+      > /usr/local/bin/rev && chmod +x /usr/local/bin/rev; \
+  fi
+  ```
+
+  No user action is required — this fix is applied automatically during `docker build`. If you see this error in an already-running container (built before this fix was introduced), rebuild the image:
+
+  ```bash
+  cd kali-portable/docker
+  docker build --pull --no-cache -t kali-pentest-full .
+  ```
+</Accordion>

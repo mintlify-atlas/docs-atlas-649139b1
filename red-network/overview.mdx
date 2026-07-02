@@ -1,0 +1,67 @@
+---
+title: "Segmented Home Network Lab with Cisco 892FSP"
+sidebarTitle: "Overview"
+description: "A real-world enterprise network design applied to a home lab: 6 VLANs, QoS for gaming, WireGuard VPN, and WiFi 6 access points on Cisco 892FSP hardware."
+---
+
+This project documents the design, configuration, and deployment of a fully segmented and secured home network built by Diego Arriagada Zamora (V0rt3xS0urc3). The core idea is straightforward but ambitious: take enterprise networking concepts — VLANs, QoS, ACLs, and encrypted remote access — and apply them to a real home environment using a professional-grade Cisco 892FSP router. The result is a network that cleanly isolates security cameras, gaming PCs, smartphones, multimedia devices, guests, and administrative management into independent segments, each governed by its own access policy.
+
+## Project Objectives
+
+The network was designed around six concrete goals:
+
+<Steps>
+  <Step title="Network Segmentation (6 VLANs)">
+    Isolate traffic by device type and trust level. Cameras, gaming rigs, multimedia devices, smartphones, guests, and the admin management plane each live in their own VLAN with no unintended cross-talk.
+  </Step>
+  <Step title="Quality of Service (QoS)">
+    Prioritize gaming traffic from VLAN 50 to guarantee minimum latency, even when other devices are streaming or transferring large files simultaneously.
+  </Step>
+  <Step title="Camera Network Isolation">
+    Lock the IP camera and NVR segment (VLAN 10) away from the internet and from every other VLAN. Cameras cannot phone home, cannot be accessed from a compromised guest device, and cannot reach internal services.
+  </Step>
+  <Step title="Secure Remote Access via WireGuard">
+    Enable encrypted remote access to the home lab from any location using a WireGuard VPN server, with all traffic tunneled through the admin segment.
+  </Step>
+  <Step title="Centralization with Cisco 892FSP">
+    Use the Cisco 892FSP as the single network core — handling inter-VLAN routing, DHCP for all segments, NAT, QoS enforcement, and ACL-based access control in one device.
+  </Step>
+  <Step title="WiFi 6 Access Points with OpenWrt">
+    Integrate high-performance WiFi 6 APs running OpenWrt to create multiple SSIDs, each tagged to the correct VLAN, offering low-latency 5GHz for gaming and broader 2.4GHz coverage for multimedia and guests.
+  </Step>
+</Steps>
+
+## Hardware Overview
+
+All components used in this project are real, physical hardware — no virtualization of the network layer.
+
+| Component | Model | Role |
+|-----------|-------|------|
+| Core Router | Cisco 892FSP | VLANs, DHCP, NAT, QoS, ACLs |
+| Primary WiFi 6 AP | EDUP RT2980 (OpenWrt) | 5GHz gaming (VLAN 50), 2.4GHz multimedia (VLAN 20) |
+| Secondary APs | Aztech WL559E (×2) | Smartphones (VLAN 30), Guests (VLAN 40) |
+
+<Note>
+  The Cisco 892FSP has no PoE capability. External power supplies are used for cameras and access points where needed.
+</Note>
+
+## Explore the Documentation
+
+<CardGroup cols={2}>
+  <Card title="Architecture" icon="sitemap" href="/red-network/architecture">
+    Physical port assignments, trunk links, VLAN routing design, and WiFi 6 AP integration.
+  </Card>
+  <Card title="VLANs" icon="network-wired" href="/red-network/vlans">
+    All 6 VLAN segments: IP addressing, purpose, internet access policies, and DHCP config.
+  </Card>
+  <Card title="QoS & ACLs" icon="shield-halved" href="/red-network/qos-acls">
+    Cisco MQC QoS for gaming priority and ACL rules enforcing VLAN isolation.
+  </Card>
+  <Card title="WireGuard VPN" icon="lock" href="/red-network/wireguard-vpn">
+    Encrypted remote access setup: server config, client config, and Cisco port forwarding.
+  </Card>
+</CardGroup>
+
+<Info>
+  This project is built and documented for **educational and portfolio purposes** by Diego Arriagada Zamora (V0rt3xS0urc3), a Chilean pentester and ethical hacker. All configurations reflect real deployments on physical hardware.
+</Info>

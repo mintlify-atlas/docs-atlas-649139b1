@@ -1,0 +1,115 @@
+---
+title: "QoS and ACLs: Traffic Prioritization and Access Control"
+sidebarTitle: "QoS & ACLs"
+description: "Cisco 892FSP QoS configuration for gaming traffic priority and ACL rules that enforce isolation between VLANs, restricting camera and guest network access."
+---
+
+Quality of Service and Access Control Lists are the two critical policy layers that make this network more than just a segmented design — they make it a functioning security posture with real performance guarantees. QoS ensures that gaming traffic from VLAN 50 is never starved by a 4K stream or a background update, while ACLs enforce the isolation promises made by the VLAN design: cameras truly cannot reach the internet, and guests truly cannot reach internal hosts. Both policies are applied on the Cisco 892FSP, the single routing chokepoint for all traffic in the network.
+
+## Quality of Service (QoS)
+
+### Goal
+
+Minimize latency and jitter for VLAN 50 (GAMING) by guaranteeing a reserved share of WAN bandwidth, regardless of what other devices are doing.
+
+### Approach: Cisco MQC
+
+The Cisco 892FSP uses **Modular QoS CLI (MQC)**, which separates traffic identification (class-maps) from the action taken on that traffic (policy-maps), then attaches the policy to an interface.
+
+### Step 1 — Identify Gaming Traffic with a Class-Map
+
+```text
+class-map match-all GAMING-CLASS
+ match access-group name GAMING-NET
+ exit
+```
+
+The `GAMING-NET` access group matches traffic sourced from the GAMING VLAN subnet (10.0.50.0/29), so classification is based on source IP rather than relying solely on DSCP markings, which client devices may not set consistently.
+
+### Step 2 — Define the Policy-Map
+
+```text
+policy-map QOS-POLICY
+ class GAMING-CLASS
+  priority percent 40
+ class class-default
+  fair-queue
+ exit
+```
+
+- **`priority percent 40`**: Reserves 40% of the WAN interface's outbound bandwidth as a strict-priority queue for GAMING traffic. This bandwidth is guaranteed and served before all other classes.
+- **`fair-queue`** on `class-default`: All remaining traffic (streaming, browsing, downloads) is scheduled with weighted fair queuing, preventing any single flow from monopolizing the remaining 60%.
+
+### Step 3 — Apply to WAN Interface
+
+```text
+interface GigabitEthernet8
+ service-policy output QOS-POLICY
+ exit
+```
+
+The policy is applied **outbound** on GE8 (the WAN uplink to the ISP modem). This is where congestion actually occurs — the bottleneck between the fast internal LAN and the slower internet connection.
+
+<Note>
+  QoS is applied outbound on the WAN interface, meaning it shapes traffic leaving the home network toward the internet. For latency-sensitive games, the upstream direction (packets sent from the gaming PC to game servers) benefits most from this prioritization.
+</Note>
+
+---
+
+## Access Control Lists (ACLs)
+
+ACLs are applied **inbound on each VLAN SVI**. Because the Cisco 892FSP routes all inter-VLAN traffic, every packet that crosses a VLAN boundary — whether heading to another internal segment or out to the internet — passes through the SVI ACL of the source VLAN.
+
+### Camera Isolation — VLAN 10
+
+The camera ACL implements a full deny-all policy. No traffic originating from VLAN 10 is permitted to leave the segment.
+
+```text
+ip access-list extended BLOCK-CAMERAS-INET
+ deny ip any any
+ exit
+
+interface Vlan10
+ ip access-group BLOCK-CAMERAS-INET in
+ exit
+```
+
+<Warning>
+  This ACL denies **all** outbound traffic from cameras, including to the internet and to all other VLANs. If you need to access the NVR from the ADMIN VLAN (VLAN 99), the access must be initiated from VLAN 99 inbound — not from VLAN 10 outbound. An explicit permit from 10.0.99.0/29 to 10.0.10.0/29 on the VLAN 99 SVI allows this direction of access.
+</Warning>
+
+### Guest Isolation — VLAN 40
+
+Guests can reach the internet but are blocked from reaching any internal RFC1918 address space.
+
+```text
+ip access-list extended GUEST-ACL
+ deny ip 10.0.40.0 0.0.0.15 10.0.0.0 0.255.255.255
+ permit ip any any
+ exit
+
+interface Vlan40
+ ip access-group GUEST-ACL in
+ exit
+```
+
+- The **deny** line uses a wildcard mask of `0.255.255.255`, which matches the entire `10.x.x.x` address space — this blocks guests from reaching any internal VLAN, including cameras, gaming PCs, multimedia devices, and the admin network.
+- The **permit** passes all other traffic (internet-bound), allowing normal web browsing, streaming, and app usage.
+
+### Admin VLAN — VLAN 99
+
+The ADMIN VLAN has no restrictive outbound ACL — it is permitted to reach all other VLANs for management purposes (SSH to the router, NVR access, monitoring). However, inbound ACLs on all other VLANs ensure that **no device outside VLAN 99 can initiate a connection into VLAN 99**, protecting the management plane from lateral movement.
+
+## Applied ACLs Summary
+
+```text
+interface Vlan10
+ ip access-group BLOCK-CAMERAS-INET in
+
+interface Vlan40
+ ip access-group GUEST-ACL in
+```
+
+<Tip>
+  To verify ACL behavior, use `ping` and `traceroute` from a device in each VLAN after applying the policies. From a camera (VLAN 10), pings to 8.8.8.8 and to 10.0.50.1 should both fail. From a guest device (VLAN 40), pings to 8.8.8.8 should succeed, but pings to 10.0.10.1 or 10.0.50.1 should be blocked. Use `show ip access-lists` on the Cisco router to see hit counters confirming which ACE lines are matching traffic.
+</Tip>

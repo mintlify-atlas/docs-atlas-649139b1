@@ -1,0 +1,90 @@
+---
+title: "Kali Portable Configuration: Volumes, Paths & Variables"
+sidebarTitle: "Configuration"
+description: "Reference for Kali Portable environment variables, Docker volume mounts, directory structure, and the persistent data layout on the host machine."
+---
+
+Kali Portable is configured entirely through Docker — no config file on the host is needed. Behavior is driven by two mechanisms: **environment variables** baked into the image at build time (via `ENV` statements in the Dockerfile), and **volume mounts** declared in `run-kali.sh` at container launch time. Understanding both lets you customize paths, share data with the host, and tune GPU or network capabilities without rebuilding the image.
+
+## Environment Variables
+
+These variables are set inside the container by the `Dockerfile` and are available to every tool and script running within it. You can override any of them at runtime with `docker run -e VAR=value`.
+
+| Variable | Default Value | Description |
+|---|---|---|
+| `DEBIAN_FRONTEND` | `noninteractive` | Suppresses interactive `apt` prompts during package installation |
+| `HASHCAT_RULES_PATH` | `/usr/share/hashcat/rules` | Default directory for Hashcat mutation rules (`best64.rule`, `d3ad0ne.rule`, etc.) |
+| `WORDLISTS_PATH` | `/usr/share/wordlists` | Default directory for wordlists; `rockyou.txt` and gobuster symlinks live here |
+| `SECLISTS_PATH` | `/usr/share/seclists` | Full SecLists collection installation path |
+
+<Note>
+  `HASHCAT_RULES_PATH` and `WORDLISTS_PATH` are used by the built-in helper scripts (`auto-crack-wpa2.sh`) to resolve paths automatically. If you mount a custom wordlists directory, override `WORDLISTS_PATH` to match.
+</Note>
+
+## Volume Mounts
+
+`run-kali.sh` mounts four directories into the container every time it launches. The host path is relative to the directory from which you run the script (`${PWD}`).
+
+| Host Path | Container Path | Access | Purpose |
+|---|---|---|---|
+| `./data` | `/root/pentest` | `rw` | Persistent pentest data — everything you save here survives container restarts |
+| `./scripts` | `/root/pentest/scripts` | `ro` | Custom user scripts dropped in from the host; read-only inside the container |
+| `/usr/share/wordlists` | `/host-wordlists` | `ro` | Host system wordlists (if Kali or Parrot is the host OS); read-only pass-through |
+| `/tmp/.X11-unix` | `/tmp/.X11-unix` | `rw` | X11 socket for GUI application forwarding (Burp Suite, Wireshark) |
+
+<Warning>
+  The `./data` mount is your single source of truth for persistent work. Files written anywhere else inside the container (e.g., `/tmp`, `/opt`) are lost when the container exits because `--rm` is always set.
+</Warning>
+
+## Persistent Directory Structure
+
+The `./data/` folder on your host maps to `/root/pentest/` inside the container. Both the Dockerfile and `run-kali.sh` pre-create the following subdirectories automatically on first run:
+
+```text
+data/
+├── scripts/        # Custom pentesting scripts (also mounted read-only from ./scripts/)
+├── wordlists/      # Downloaded wordlists — rockyou.txt, custom lists
+├── loot/           # Cracked hashes, credentials, and findings
+├── reports/        # Pentest reports and notes
+├── tools/          # Additional tools not included in the image
+├── handshakes/     # Captured WPA2 handshakes (.pcapng, .hc22000)
+├── pcaps/          # Other packet captures
+└── vpn/            # OpenVPN configuration files (.ovpn) for THM/HTB
+```
+
+<Tip>
+  Place your TryHackMe or HackTheBox `.ovpn` files in `data/vpn/` before launching the container. Inside the container, connect with `openvpn --config /root/pentest/vpn/your_file.ovpn --dev tun`.
+</Tip>
+
+## Docker Run Flags Reference
+
+`run-kali.sh` assembles the `docker run` command dynamically. The following flags are always present (normal mode) or conditionally added (wpa2 mode):
+
+| Flag | Mode | Purpose |
+|---|---|---|
+| `--rm` | All | Remove the container automatically on exit — keeps the Docker environment clean |
+| `-it` | All | Allocate an interactive pseudo-TTY; required for the shell and tools like `msfconsole` |
+| `--network host` | All | Share the host network stack; needed for VPN tunnels, raw packet capture, and pivoting |
+| `--cap-add NET_RAW` | All | Grant raw socket access for tools like `tcpdump`, `nmap`, and `hcxdumptool` |
+| `--cap-add NET_ADMIN` | All | Grant network administration capabilities for interface manipulation |
+| `--gpus all` | All (auto-detected) | Pass through NVIDIA GPU to the container for Hashcat CUDA acceleration |
+| `--privileged` | `wpa2` only | Full kernel privilege required by `hcxdumptool` for USB WiFi adapter access |
+
+<Warning>
+  The `--privileged` flag is only applied when you launch with `./run-kali.sh wpa2`. Never use privileged mode for general pentesting — it grants the container unrestricted access to the host kernel.
+</Warning>
+
+## Updating the Image
+
+The image is built from `kalilinux/kali-rolling:latest`. To pull the latest Kali packages and rebuild:
+
+```bash
+cd kali-portable/docker
+docker build --pull --no-cache -t kali-pentest-full .
+```
+
+<Info>
+  `--pull` forces Docker to re-fetch `kali-rolling:latest` even if a local copy exists. `--no-cache` ensures every `RUN` layer is re-executed so package versions are current. The build takes approximately 30–45 minutes depending on your internet connection.
+</Info>
+
+**Recommended frequency:** Every 3–6 months, or whenever a significant Kali Linux release is published. Check [kali.org/releases](https://www.kali.org/releases/) for the latest release notes.

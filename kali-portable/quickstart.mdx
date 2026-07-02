@@ -1,0 +1,124 @@
+---
+title: "Quickstart: Launch Your First Pentesting Session"
+sidebarTitle: "Quickstart"
+description: "Get Kali Portable running in three commands. Learn how to launch normal and WPA2 modes, verify GPU detection, and connect to TryHackMe or HackTheBox."
+---
+
+From zero to a working Kali Linux shell with 100+ tools takes three commands and 30–45 minutes on a fresh Linux machine. After the one-time build, subsequent launches are instant. This guide walks you through the three-command setup, explains what you see on startup, and shows you how to connect to practice platforms like TryHackMe and HackTheBox from inside the container.
+
+## Three-Command Quickstart
+
+<Steps>
+  <Step title="Clone the Repository and Navigate">
+    ```bash
+    git clone https://github.com/V0rt3xS0urc3/RedTeam-Portfolio.git
+    cd RedTeam-Portfolio/kali-portable
+    ```
+  </Step>
+
+  <Step title="Run the Automated Installer">
+    ```bash
+    chmod +x scripts/install-on-new-pc.sh
+    ./scripts/install-on-new-pc.sh
+    ```
+
+    The installer handles Docker, NVIDIA GPU detection, image build, and wordlist downloads automatically. See the [Installation guide](/kali-portable/installation) for a full breakdown of what it does.
+  </Step>
+
+  <Step title="Launch Kali Portable">
+    ```bash
+    ./run-kali.sh normal
+    ```
+
+    You are now inside a fully equipped Kali Linux pentesting environment. All tools are immediately available on `$PATH`.
+  </Step>
+</Steps>
+
+## What You See on Launch
+
+Every time the container starts, `run-kali.sh` prints a startup banner followed by a GPU detection message before handing you a shell:
+
+```text
+╔════════════════════════════════════════════════════╗
+║     KALI PORTABLE FULL - PENTESTING EDITION      ║
+╠════════════════════════════════════════════════════╣
+║  Creado por: Diego Arriagada                 ║
+║  Alias:      V0rt3x_S0urc3                     ║
+║                                                ║
+║  GitHub:   github.com/diegoarriagadazamora  ║
+║  LinkedIn: linkedin.com/in/diegoarriagadazamora║
+╚════════════════════════════════════════════════════╝
+```
+
+Inside the container, your shell session starts at `/root/pentest` and the following banner is displayed by `.bashrc`:
+
+```text
+╔════════════════════════════════════════════════════════╗
+║  KALI PORTABLE FULL - CEH COMPLETE EDITION            ║
+║  100% listo para: CEHPC, eJPT, eCPPT, THM, HTB          ║
+║  Autor: Diego Arriagada Zamora (V0rt3x_S0urc3)               ║
+╚════════════════════════════════════════════════════════╝
+```
+
+## GPU Detection Output
+
+After the banner, `run-kali.sh` automatically tests for an NVIDIA GPU and reports the result before starting the container:
+
+**With NVIDIA GPU and Container Toolkit configured:**
+
+```text
+🚀 GPU NVIDIA detectada: Hashcat con aceleración GPU ACTIVADA
+```
+
+**Without a compatible GPU (or toolkit not configured):**
+
+```text
+💻 Sin GPU detectada: Hashcat usará CPU (más lento)
+```
+
+<Note>
+  Even without a GPU, all cracking tools function correctly — Hashcat simply runs on CPU. To enable GPU support after the fact, install the NVIDIA Container Toolkit on the host and run `sudo nvidia-ctk runtime configure --runtime=docker && sudo systemctl restart docker`, then relaunch the container.
+</Note>
+
+## Connecting to TryHackMe or HackTheBox
+
+OpenVPN is pre-installed in the image. Download your `.ovpn` connection file from your platform's dashboard and place it in the `./data/vpn/` directory on the host. That directory maps to `/root/pentest/vpn/` inside the container.
+
+```bash
+# Inside the container
+openvpn --config /root/pentest/vpn/tu_archivo.ovpn --dev tun
+```
+
+<Tip>
+  Run OpenVPN in a `tmux` pane so you can keep the VPN connection alive while working in other panes. `tmux` is pre-installed in the image.
+</Tip>
+
+## Persistent Data Directory
+
+All files you create or download inside the container at `/root/pentest` are automatically synced to the `./data/` directory on your host machine. Nothing is lost when the container exits.
+
+| Container path | Host path | Purpose |
+|---|---|---|
+| `/root/pentest/wordlists/` | `./data/wordlists/` | Dictionaries (`rockyou.txt`, `common.txt`) |
+| `/root/pentest/rules/` | `./data/rules/` | Hashcat rule files |
+| `/root/pentest/handshakes/` | `./data/handshakes/` | Captured WiFi `.pcapng` / `.hc22000` files |
+| `/root/pentest/loot/` | `./data/loot/` | Cracked credentials and results |
+| `/root/pentest/vpn/` | `./data/vpn/` | OpenVPN `.ovpn` configuration files |
+
+<Note>
+  The `./scripts/` directory is also mounted into the container at `/root/pentest/scripts` as read-only. Helper scripts like `auto-crack-wpa2.sh` and `setup-wifi.sh` are available on `$PATH` inside the container.
+</Note>
+
+## Next Steps
+
+<CardGroup cols={3}>
+  <Card title="Run Modes" icon="play" href="/kali-portable/run-modes">
+    Deep-dive into `normal` vs. `wpa2` mode — what Docker flags each mode uses and when to choose one over the other.
+  </Card>
+  <Card title="Tools Reference" icon="screwdriver-wrench" href="/kali-portable/tools">
+    Full catalogue of the 100+ tools included in the image, organized by category: recon, exploitation, web, AD, forensics, and more.
+  </Card>
+  <Card title="Auto-Crack WPA2" icon="wifi" href="/kali-portable/auto-crack-wpa2">
+    End-to-end walkthrough of the WPA2 cracking pipeline: monitor mode, handshake capture with `hcxdumptool`, conversion, and GPU-accelerated Hashcat.
+  </Card>
+</CardGroup>

@@ -1,0 +1,107 @@
+---
+title: "About V0rt3xS0urc3: Pentester & Red Team Operator"
+sidebarTitle: "About"
+description: "Diego Arriagada Zamora (V0rt3xS0urc3) is a Chilean ethical hacker specializing in red team ops, Active Directory attacks, WiFi auditing, and web security."
+---
+
+Diego Arriagada Zamora, known online as **V0rt3xS0urc3**, is a Chilean pentester and ethical hacker focused on offensive security across infrastructure, web, wireless, and Active Directory environments. His work spans building real-world attack tooling — including a fully Dockerized Kali Linux pentesting station with GPU acceleration — designing enterprise-style network segmentation labs at home, and publishing detailed CTF writeups to document tradecraft and reinforce practical skills. Everything in this portfolio reflects hands-on lab work, not theory.
+
+## Specializations
+
+Diego's offensive security focus is spread across five core disciplines, each backed by practical tooling, real lab environments, and ongoing platform practice.
+
+<CardGroup cols={2}>
+  <Card title="Red Team Operations" icon="crosshairs">
+    End-to-end offensive engagements using frameworks like Metasploit, payloads generated with Veil Framework and Shellter, post-exploitation with LinPEAS/WinPEAS and Pwncat, and tunneling via Chisel, Ligolo-ng, and SSHuttle.
+  </Card>
+  <Card title="Web & Infrastructure Auditing" icon="globe">
+    Web application security assessments using Burp Suite, SQLMap, Gobuster, FFUF, Wfuzz, Nikto, tplmap (SSTI), jwt_tool, and Weevely for webshell post-exploitation. Infrastructure scanning with Nmap, Masscan, RustScan, and Nuclei.
+  </Card>
+  <Card title="WiFi Auditing & WPA2 Cracking" icon="wifi">
+    Wireless assessments using the Aircrack-ng suite, hcxdumptool for PMKID and handshake capture, hcxpcapngtool for format conversion, and Hashcat with NVIDIA CUDA GPU acceleration for high-speed WPA2 cracking against rockyou.txt and custom rule sets.
+  </Card>
+  <Card title="Active Directory Penetration Testing" icon="building-columns">
+    AD attack chains using the Impacket suite, BloodHound for attack path analysis, NetExec and CrackMapExec for lateral movement, Certipy for ADCS certificate abuse, and Kerbrute for Kerberos enumeration and brute-forcing.
+  </Card>
+  <Card title="Digital Forensics" icon="magnifying-glass">
+    Memory forensics with Volatility 3, disk and filesystem analysis with Sleuth Kit, firmware analysis with Binwalk, and mobile reverse engineering with APKTool, Dex2Jar, and JADX.
+  </Card>
+  <Card title="OSINT & Reconnaissance" icon="binoculars">
+    Information gathering with theHarvester, Shodan CLI, and Maltego for visual relationship mapping. Social engineering workflows using the Social Engineer Toolkit (SET).
+  </Card>
+</CardGroup>
+
+## Portfolio Projects
+
+The three main projects in this portfolio represent Diego's applied infrastructure and offensive security work. Each is fully documented with setup guides, tool walkthroughs, and real examples.
+
+<CardGroup cols={2}>
+  <Card
+    title="Kali Portable (Docker)"
+    icon="docker"
+    href="/kali-portable/overview"
+  >
+    A complete red team workstation in Docker: 100+ tools, NVIDIA GPU-accelerated Hashcat, automated WPA2 cracking, persistent volumes, and one-command setup for new machines. Compatible with TryHackMe, HackTheBox, and DockerLabs.
+  </Card>
+  <Card
+    title="Red Domestic Network"
+    icon="network-wired"
+    href="/red-network/overview"
+  >
+    Enterprise-grade segmented home network on a Cisco 892FSP core: 6 VLANs isolating cameras, gaming, multimedia, smartphones, guests, and admin traffic. Includes QoS, WireGuard remote access, and WiFi 6 with OpenWrt.
+  </Card>
+  <Card
+    title="CTF Writeups (DockerLabs)"
+    icon="flag"
+    href="/writeups/overview"
+  >
+    Detailed walkthroughs for DockerLabs.es machines across Infrastructure Hacking, Web Hacking, CMS Hacking, Bug Bounty, and Pivoting — from very easy to hard difficulty levels.
+  </Card>
+</CardGroup>
+
+## Certifications & Platform Activity
+
+Diego is actively developing his formal credentials alongside continuous hands-on practice across major offensive security platforms.
+
+<CardGroup cols={2}>
+  <Card title="Certifications in Progress" icon="certificate">
+    - **CEH** (Certified Ethical Hacker) — exam preparation
+    - **eJPT** (eLearnSecurity Junior Penetration Tester)
+    - **eCPPT** (eLearnSecurity Certified Professional Penetration Tester)
+  </Card>
+  <Card title="Practice Platforms" icon="terminal">
+    - **TryHackMe** — Active, with OpenVPN integrated in Kali Portable
+    - **HackTheBox** — Active, with OpenVPN integrated in Kali Portable
+    - **DockerLabs.es** — Primary source for CTF writeups (193+ machines)
+    - **VulnHub & HackLabs** — Local VM-based practice
+  </Card>
+</CardGroup>
+
+<Note>
+  The Kali Portable Docker environment is pre-configured for seamless connectivity to TryHackMe and HackTheBox — place your `.ovpn` file in `data/vpn/` and run `openvpn --config /root/pentest/vpn/your_file.ovpn --dev tun` from inside the container.
+</Note>
+
+## Connect
+
+<CardGroup cols={2}>
+  <Card
+    title="GitHub: V0rt3xS0urc3"
+    icon="github"
+    href="https://github.com/V0rt3xS0urc3"
+  >
+    Source code for all portfolio projects including Kali Portable Dockerfile, automation scripts, and CTF writeups.
+  </Card>
+  <Card
+    title="LinkedIn: Diego Arriagada Zamora"
+    icon="linkedin"
+    href="https://www.linkedin.com/in/diegoarriagadazamora"
+  >
+    Professional profile and experience in penetration testing and ethical hacking.
+  </Card>
+</CardGroup>
+
+## Legal Disclaimer
+
+<Warning>
+  All projects, tools, scripts, and documentation in this portfolio are intended **exclusively for educational purposes and authorized security auditing**. The misuse of any technique or tool documented here is the sole legal and ethical responsibility of the user. Always obtain explicit written authorization before conducting penetration tests on any system you do not own. **🇨🇱 Chilean Law 19.223** criminalizes unauthorized access to computer systems — respect the law, respect authorization boundaries.
+</Warning>

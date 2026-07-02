@@ -1,0 +1,178 @@
+---
+title: "setup-wifi.sh: Activate Monitor Mode on WiFi Adapter"
+sidebarTitle: "WiFi Setup"
+description: "setup-wifi.sh automates putting a USB WiFi adapter into monitor mode inside the Kali Portable container, killing conflicting processes and confirming the interface name."
+---
+
+Monitor mode is a special operating state for wireless network adapters that allows the card to capture every 802.11 frame in range — not just frames addressed to it — without associating with any access point. It is a prerequisite for tools like `hcxdumptool` and `airodump-ng` that need to passively observe or actively inject WiFi traffic. `setup-wifi.sh` automates the full activation sequence: detecting your adapter, stopping any processes that would interfere (such as NetworkManager and wpa_supplicant), enabling monitor mode with `airmon-ng`, and reporting the new interface name so you can use it immediately.
+
+<Warning>
+  Activating monitor mode and capturing WiFi traffic on networks you do not own or have explicit written authorization to test is illegal in most jurisdictions. Use this script only on your own network, networks where you have authorization, or dedicated practice platforms.
+</Warning>
+
+---
+
+## Prerequisites
+
+<CardGroup cols={2}>
+  <Card title="WPA2 Launch Mode Required" icon="shield-halved">
+    The container **must** be started with `./run-kali.sh wpa2`. The `--privileged` flag that mode adds is what allows the container to reach into the host kernel's wireless driver stack. Without it, `airmon-ng` will fail silently.
+  </Card>
+  <Card title="Compatible USB WiFi Adapter" icon="wifi">
+    You need a USB WiFi adapter that explicitly supports monitor mode and packet injection. Plug it into the host **before** starting the container.
+  </Card>
+</CardGroup>
+
+### Recommended adapters
+
+| Adapter | Chipset | Notes |
+|---------|---------|-------|
+| Alfa AWUS036NHA | Atheros AR9271 | Excellent Linux support, highly recommended |
+| TP-Link TL-WN722N **v1** | Atheros AR9271 | Only v1 supports injection; v2/v3 do not |
+| Panda PAU09 | Ralink RT5572 | Dual-band, good driver support |
+
+<Note>
+  The vast majority of internal laptop WiFi cards **do not** support monitor mode. Even cards that appear in `iw dev` may lack the necessary driver capabilities. Always verify with `iw list` before troubleshooting further.
+</Note>
+
+---
+
+## Usage
+
+```bash
+setup-wifi.sh
+```
+
+The script takes no arguments. Run it inside the container after launching with `./run-kali.sh wpa2`.
+
+---
+
+## What the Script Does
+
+<Steps>
+  <Step title="Detect wireless interfaces">
+    The script runs `iw dev` and extracts all interface names:
+
+    ```bash
+    iw dev 2>/dev/null | awk '$1=="Interface"{print $2}'
+    ```
+
+    If no interfaces are found, it exits with an error and reminds you to verify the USB connection and that you used `./run-kali.sh wpa2`.
+  </Step>
+
+  <Step title="Select the target interface">
+    - **One interface found:** it is selected automatically — no prompt.
+    - **Multiple interfaces found:** you are prompted to type the name of the interface to configure (e.g., `wlan0`).
+  </Step>
+
+  <Step title="Kill conflicting processes">
+    NetworkManager, wpa_supplicant, and other network daemons hold the wireless card open and prevent monitor mode from activating. The script stops them all:
+
+    ```bash
+    airmon-ng check kill
+    ```
+  </Step>
+
+  <Step title="Activate monitor mode">
+    `airmon-ng` puts the selected interface into monitor mode and creates a new virtual interface (typically `wlan0mon`):
+
+    ```bash
+    airmon-ng start <interface>
+    ```
+
+    The script then waits 2 seconds for the interface to be fully registered.
+  </Step>
+
+  <Step title="Confirm the new interface name">
+    The script queries `iw dev` again, filters for any interface whose name contains `mon`, and prints the result:
+
+    ```bash
+    iw dev 2>/dev/null | awk '/Interface/{print $2}' | grep mon
+    ```
+
+    On success you will see output similar to:
+
+    ```
+    🎉 ¡ÉXITO! Modo Monitor activado.
+    Tu nueva interfaz es: wlan0mon
+    ⚠ Úsala con hcxdumptool o aircrack-ng.
+    ```
+
+    If no `mon` interface appears, the adapter does not support monitor mode with its current driver.
+  </Step>
+</Steps>
+
+---
+
+## Verifying Monitor Mode
+
+After `setup-wifi.sh` completes, confirm the interface is in the correct state:
+
+```bash
+iwconfig
+# Expected output includes:
+# wlan0mon  IEEE 802.11  Mode:Monitor  Frequency:2.437 GHz
+```
+
+Check that the driver advertises monitor mode support:
+
+```bash
+iw list | grep -A 10 "Supported interface modes"
+# Must include "monitor" in the list
+```
+
+Check that the USB adapter is visible to the kernel:
+
+```bash
+lsusb
+# Your adapter should appear, e.g.:
+# Bus 001 Device 003: ID 0cf3:9271 Qualcomm Atheros Communications AR9271 802.11n
+```
+
+---
+
+## After Setup: Using the Monitor Interface
+
+Once monitor mode is active, pass the interface name (e.g., `wlan0mon`) to your capture tool:
+
+```bash
+# Capture with hcxdumptool (specific channel)
+hcxdumptool -i wlan0mon -o /root/pentest/handshakes/captura.pcapng --active -c 6
+
+# Scan all nearby networks with airodump-ng
+airodump-ng wlan0mon
+
+# Scan and filter to a specific BSSID and channel
+airodump-ng -c 6 --bssid AA:BB:CC:DD:EE:FF -w /root/pentest/handshakes/captura wlan0mon
+```
+
+<Tip>
+  After capturing a handshake, convert it to Hashcat format and crack it with `auto-crack-wpa2.sh`:
+  ```bash
+  hcxpcapngtool -o /root/pentest/handshakes/captura.hc22000 \
+                /root/pentest/handshakes/captura.pcapng
+  auto-crack-wpa2.sh -q /root/pentest/handshakes/captura.hc22000
+  ```
+</Tip>
+
+---
+
+## Troubleshooting
+
+<CardGroup cols={1}>
+  <Card title="No WiFi interfaces found" icon="circle-xmark">
+    **Cause:** The USB adapter was not connected before the container started, or the container was not launched with `--privileged` (i.e., you used `./run-kali.sh normal`).
+
+    **Fix:** Plug in the adapter, then relaunch with `./run-kali.sh wpa2`.
+  </Card>
+  <Card title="Monitor mode interface not created" icon="circle-xmark">
+    **Cause:** The adapter's driver does not support monitor mode, or the driver was not loaded.
+
+    **Fix:** Run `iw list | grep -A 5 "Supported interface modes"` inside the container. If `monitor` is missing from the list, the adapter is not compatible — you need a different card.
+  </Card>
+  <Card title="airmon-ng fails silently" icon="circle-xmark">
+    **Cause:** Container was not started in privileged mode.
+
+    **Fix:** Exit the container and relaunch with `./run-kali.sh wpa2`.
+  </Card>
+</CardGroup>

